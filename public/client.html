@@ -3,40 +3,58 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>学校祭ライト端末</title>
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 25px 15px; background: #111; color: #fff; }
+    html, body { 
+      margin: 0; padding: 0; width: 100%; height: 100%; 
+      font-family: sans-serif; text-align: center; 
+      background: #111; color: #fff; 
+      transition: background-color 0.05s ease;
+      overflow: hidden;
+    }
+    /* 画面全体が光る演出用 */
+    body.flash-on { background-color: #ffffff !important; color: #000 !important; }
+    
+    .container { padding: 30px 20px; }
     h1 { font-size: 22px; margin-bottom: 20px; }
     .step-box { background: #222; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
     .class-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
     .class-btn { padding: 15px; font-size: 18px; font-weight: bold; border-radius: 8px; border: 2px solid #555; background: #333; color: white; cursor: pointer; }
     .class-btn.selected { background: #00bcd4; border-color: #00bcd4; }
     .start-btn { width: 100%; padding: 18px; font-size: 20px; font-weight: bold; border-radius: 10px; border: none; background: #ff007f; color: white; cursor: pointer; display: none; margin-top: 15px; }
-    #joined-view { display: none; }
-    .ready-badge { display: inline-block; padding: 8px 16px; border-radius: 20px; background: #4caf50; font-weight: bold; margin-top: 15px; }
+    #joined-view { display: none; margin-top: 40px; }
+    .ready-badge { display: inline-block; padding: 10px 20px; border-radius: 20px; background: #4caf50; color: white; font-weight: bold; margin-top: 20px; font-size: 18px; }
   </style>
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
-  <div id="setup-view">
-    <h1>🎉 学校祭ライト演出</h1>
-    <div class="step-box">
-      <h3>① クラスを選んでね</h3>
-      <div class="class-grid">
-        <button class="class-btn" onclick="selectClass('1組', this)">1組</button>
-        <button class="class-btn" onclick="selectClass('2組', this)">2組</button>
-        <button class="class-btn" onclick="selectClass('3組', this)">3組</button>
-        <button class="class-btn" onclick="selectClass('4組', this)">4組</button>
-      </div>
-      <button id="startBtn" class="start-btn" onclick="startCamera()">② 参加する（カメラ許可）</button>
-    </div>
-  </div>
+  <!-- Androidでカメラをアクティブにするための隠しビデオ要素 -->
+  <video id="webcam" autoplay playsinline muted style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;"></video>
 
-  <div id="joined-view">
-    <h1 id="myClassTitle" style="color: #00bcd4;">1組</h1>
-    <div class="ready-badge">✨ 準備完了！指示を待っています ✨</div>
-    <p style="color: #888; font-size: 14px; margin-top: 25px;">※画面はこのまま閉じずに、スマホをステージに向けて待っててね！</p>
+  <div class="container">
+    <div id="setup-view">
+      <h1>🎉 学校祭ライト演出</h1>
+      <div class="step-box">
+        <h3>① クラスを選んでね</h3>
+        <div class="class-grid">
+          <button class="class-btn" onclick="selectClass('1組', this)">1組</button>
+          <button class="class-btn" onclick="selectClass('2組', this)">2組</button>
+          <button class="class-btn" onclick="selectClass('3組', this)">3組</button>
+          <button class="class-btn" onclick="selectClass('4組', this)">4組</button>
+        </div>
+        <button id="startBtn" class="start-btn" onclick="startCamera()">② 参加する（カメラ許可）</button>
+      </div>
+    </div>
+
+    <div id="joined-view">
+      <h1 id="myClassTitle" style="color: #00bcd4; font-size: 28px;">1組</h1>
+      <div class="ready-badge">✨ 準備完了！指示を待機中 ✨</div>
+      <p style="color: #888; font-size: 14px; margin-top: 40px; line-height: 1.6;">
+        画面はこのまま開いたままにしてね！<br>
+        背面ライト＆画面の両方がピカピカ光ります！
+      </p>
+    </div>
   </div>
 
   <script>
@@ -53,27 +71,51 @@
 
     async function startCamera() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' }
-        });
+        // AndroidとiPhoneの両方で背面ライト付きカメラを確実に掴む設定
+        const constraints = {
+          video: {
+            facingMode: { ideal: 'environment' }
+          }
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         track = stream.getVideoTracks()[0];
-        
+
+        // Android対策：ビデオ要素にストリームを流して明示的に再生する
+        const video = document.getElementById('webcam');
+        video.srcObject = stream;
+        await video.play().catch(e => console.log('video play error', e));
+
+        // サーバーに参加通知
         socket.emit('join-client', { group: selectedClass });
 
         document.getElementById('setup-view').style.display = 'none';
         document.getElementById('joined-view').style.display = 'block';
         document.getElementById('myClassTitle').innerText = `🏫 あなたは「${selectedClass}」です`;
       } catch (err) {
-        alert('カメラの起動に失敗しました。カメラの利用を許可してください: ' + err.message);
+        alert('カメラの起動に失敗しました。カメラの許可をオンにしてください: ' + err.message);
       }
     }
 
+    // ライトと画面のダブル点灯
     async function setTorch(state) {
-      if (!track) return;
-      try {
-        await track.applyConstraints({ advanced: [{ torch: state }] });
-      } catch (e) {
-        console.error('Torch error:', e);
+      // 1. スマホの画面自体を光らせる（白くフラッシュ）
+      if (state) {
+        document.body.classList.add('flash-on');
+      } else {
+        document.body.classList.remove('flash-on');
+      }
+
+      // 2. 背面のカメラライトを光らせる
+      if (track) {
+        try {
+          await track.applyConstraints({
+            advanced: [{ torch: state }]
+          });
+        } catch (e) {
+          // 機種によってtorch制約がエラーになっても画面は光るように無視
+          console.warn('Torch not supported or error:', e);
+        }
       }
     }
 
