@@ -21,11 +21,10 @@
     .class-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
     .class-btn { padding: 14px; font-size: 18px; font-weight: bold; border-radius: 8px; border: 2px solid #555; background: #333; color: white; cursor: pointer; }
     .class-btn.selected { background: #00bcd4; border-color: #00bcd4; }
+    .name-input { width: 90%; padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #444; background: #333; color: white; margin-top: 12px; box-sizing: border-box; }
     .start-btn { width: 100%; padding: 16px; font-size: 19px; font-weight: bold; border-radius: 10px; border: none; background: #ff007f; color: white; cursor: pointer; display: none; margin-top: 15px; }
     #joined-view { display: none; margin-top: 30px; }
     .ready-badge { display: inline-block; padding: 10px 20px; border-radius: 20px; background: #4caf50; color: white; font-weight: bold; margin-top: 15px; font-size: 18px; }
-    
-    /* LINE内ブラウザなどの警告バナー */
     #browser-warning { display: none; background: #e63946; color: white; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; line-height: 1.5; font-weight: bold; }
   </style>
   <script src="/socket.io/socket.io.js"></script>
@@ -34,10 +33,9 @@
   <video id="webcam" autoplay playsinline muted style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;"></video>
 
   <div class="container">
-    <!-- アプリ内ブラウザ警告 -->
     <div id="browser-warning">
       ⚠️ LINE等のアプリ内で開いています！<br>
-      右上の「︙」や共有ボタンから「ブラウザ（Chrome / Safari）で開く」を選んでください！
+      右上の「︙」から「ブラウザ（Chrome / Safari）で開く」を選んでね！
     </div>
 
     <div id="setup-view">
@@ -50,12 +48,17 @@
           <button class="class-btn" onclick="selectClass('3組', this)">3組</button>
           <button class="class-btn" onclick="selectClass('4組', this)">4組</button>
         </div>
-        <button id="startBtn" class="start-btn" onclick="startCamera()">② 参加する（カメラ許可）</button>
+
+        <h3 style="margin-top: 20px; margin-bottom: 5px;">② なまえ（空欄でもOK）</h3>
+        <input type="text" id="nickname" class="name-input" placeholder="例：たろう、さくら">
+
+        <button id="startBtn" class="start-btn" onclick="startCamera()">③ 参加する（カメラ許可）</button>
       </div>
     </div>
 
     <div id="joined-view">
       <h1 id="myClassTitle" style="color: #00bcd4; font-size: 26px;">1組</h1>
+      <h2 id="myNameTitle" style="font-size: 20px; color: #ffb703; margin-top: -10px;"></h2>
       <div class="ready-badge">✨ 準備完了！指示を待機中 ✨</div>
       <p style="color: #aaa; font-size: 14px; margin-top: 35px; line-height: 1.6;">
         画面はこのまま開いたまま待っててね！<br>
@@ -70,7 +73,6 @@
     let selectedClass = '';
     let isJoined = false;
 
-    // LINEやInstagramなどのアプリ内ブラウザをチェック
     const ua = navigator.userAgent.toLowerCase();
     if (ua.indexOf('line') > -1 || ua.indexOf('instagram') > -1 || ua.indexOf('fbav') > -1) {
       document.getElementById('browser-warning').style.display = 'block';
@@ -83,12 +85,10 @@
       document.getElementById('startBtn').style.display = 'block';
     }
 
-    // ★ライト（torch）が付いているカメラを自動スキャンして見つける関数
     async function findTorchCamera() {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(d => d.kind === 'videoinput');
 
-      // 1台ずつテストして torch をサポートしているカメラを探す
       for (const device of videoDevices) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
@@ -96,15 +96,11 @@
           });
           const t = stream.getVideoTracks()[0];
           const caps = t.getCapabilities ? t.getCapabilities() : {};
-          if (caps.torch) {
-            return { stream, track: t }; // ライト付きカメラを発見！
-          }
-          // ライトがなければ停止して次のカメラへ
+          if (caps.torch) return { stream, track: t };
           t.stop();
         } catch (e) {}
       }
 
-      // 見つからなければ通常の背面カメラ
       const fallbackStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' } }
       });
@@ -113,41 +109,39 @@
 
     async function startCamera() {
       try {
-        // ライト付きカメラを自動探索
         const result = await findTorchCamera();
         track = result.track;
 
-        // Android用：ビデオ要素で明示的に再生
         const video = document.getElementById('webcam');
         video.srcObject = result.stream;
         await video.play().catch(e => console.log(e));
 
         isJoined = true;
-        socket.emit('join-client', { group: selectedClass });
+        const name = document.getElementById('nickname').value;
+        socket.emit('join-client', { group: selectedClass, name: name });
 
         document.getElementById('setup-view').style.display = 'none';
         document.getElementById('joined-view').style.display = 'block';
-        document.getElementById('myClassTitle').innerText = `🏫 あなたは「${selectedClass}」です`;
+        document.getElementById('myClassTitle').innerText = `🏫 ${selectedClass}`;
+        if (name) document.getElementById('myNameTitle').innerText = `👤 ${name}`;
       } catch (err) {
-        alert('カメラの起動に失敗しました。Chrome等のブラウザで開き、カメラを許可してください: ' + err.message);
+        alert('カメラの起動に失敗しました: ' + err.message);
       }
     }
 
-    // 電波復帰時
     socket.on('connect', () => {
       if (isJoined && selectedClass) {
-        socket.emit('join-client', { group: selectedClass });
+        const name = document.getElementById('nickname').value;
+        socket.emit('join-client', { group: selectedClass, name: name });
       }
     });
 
-    // 点灯処理（画面フラッシュ + 背面LED）
     async function setTorch(state) {
       if (state) {
         document.body.classList.add('flash-on');
       } else {
         document.body.classList.remove('flash-on');
       }
-
       if (track) {
         try {
           await track.applyConstraints({ advanced: [{ torch: state }] });
