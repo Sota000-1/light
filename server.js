@@ -1,104 +1,117 @@
-// server.js
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
+<!-- public/admin.html -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>学校祭ライト演出 司令塔</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #18191a; color: #fff; }
+    .container { display: flex; flex-wrap: wrap; gap: 20px; max-width: 1000px; margin: 0 auto; }
+    .panel { background: #242526; padding: 20px; border-radius: 12px; flex: 1; min-width: 320px; }
+    h2 { margin-top: 0; font-size: 20px; border-bottom: 2px solid #3a3b3c; padding-bottom: 8px; }
+    .counts-box { display: flex; justify-content: space-around; background: #3a3b3c; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
+    .count-item strong { display: block; font-size: 24px; color: #00bcd4; }
+    button { display: block; width: 100%; margin: 8px 0; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; }
+    .btn-wave { background: #ff007f; color: white; }
+    .btn-random { background: #8338ec; color: white; }
+    .btn-strobe { background: #fb5607; color: white; }
+    .btn-on { background: #ffb703; color: black; }
+    .btn-off { background: #4e4f50; color: white; }
+    .target-select { width: 100%; padding: 10px; font-size: 16px; border-radius: 6px; margin-bottom: 10px; background: #3a3b3c; color: white; border: none; }
+    .slider-box { margin: 15px 0; padding: 10px; background: #3a3b3c; border-radius: 8px; }
+    #qrcode { display: flex; justify-content: center; margin: 15px 0; background: white; padding: 15px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 左側：QRコードと参加状況 -->
+    <div class="panel">
+      <h2>📱 スマホ参加用QRコード</h2>
+      <div id="qrcode"></div>
+      <p id="qr-url" style="word-break: break-all; font-size: 12px; color: #aaa; text-align: center;"></p>
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+      <h2>👥 参加人数</h2>
+      <div class="counts-box">
+        <div class="count-item">全体<strong id="cnt-all">0</strong></div>
+        <div class="count-item">1組<strong id="cnt-1">0</strong></div>
+        <div class="count-item">2組<strong id="cnt-2">0</strong></div>
+        <div class="count-item">3組<strong id="cnt-3">0</strong></div>
+        <div class="count-item">4組<strong id="cnt-4">0</strong></div>
+      </div>
+    </div>
 
-app.use(express.static('public'));
+    <!-- 右側：演出コントロール -->
+    <div class="panel">
+      <h2>🎮 演出コントローラー</h2>
+      
+      <label>操作する対象:</label>
+      <select id="targetGroup" class="target-select">
+        <option value="全クラス">🌟 全クラス一斉</option>
+        <option value="1組">🏫 1組のみ</option>
+        <option value="2組">🏫 2組のみ</option>
+        <option value="3組">🏫 3組のみ</option>
+        <option value="4組">🏫 4組のみ</option>
+      </select>
 
-// 接続端末の管理 { socketId: { group: '1組' } }
-let clients = {};
-let currentTimer = null;
-let currentSpeed = 300; // ミリ秒（初期値）
+      <div class="slider-box">
+        <label>🎛️ 点滅・テンポ速度: <strong id="speed-val" style="color: #00bcd4;">300ms</strong></label>
+        <input type="range" id="speedSlider" min="80" max="800" step="20" value="300" style="width: 100%; margin-top: 8px;">
+        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #aaa;">
+          <span>⚡ 超高速 (BPM速い)</span>
+          <span>ゆったり 🌙</span>
+        </div>
+      </div>
 
-function stopCurrentMode() {
-  if (currentTimer) {
-    clearInterval(currentTimer);
-    currentTimer = null;
-  }
-  io.emit('torch', { state: false });
-}
+      <button class="btn-wave" onclick="sendMode('class-wave')">🌊 クラス対抗ウェーブ (1組→2組→3組→4組)</button>
+      <button class="btn-random" onclick="sendMode('random')">🎲 ランダムきらめき</button>
+      <button class="btn-strobe" onclick="sendMode('strobe')">⚡ ストロボ（激しい点滅）</button>
+      <hr style="border-color: #3a3b3c; margin: 15px 0;">
+      <button class="btn-on" onclick="sendMode('all-on')">💡 点灯</button>
+      <button class="btn-off" onclick="sendMode('all-off')">⬛ 全員 消灯 (ストップ)</button>
+    </div>
+  </div>
 
-// クラス別の人数を集計して送信
-function broadcastStatus() {
-  const counts = { '全クラス': 0, '1組': 0, '2組': 0, '3組': 0, '4組': 0 };
-  for (const id in clients) {
-    counts['全クラス']++;
-    const grp = clients[id].group;
-    if (counts[grp] !== undefined) counts[grp]++;
-  }
-  io.emit('status-update', counts);
-}
+  <script>
+    const socket = io();
 
-io.on('connection', (socket) => {
-  // スマホがクラスを選択して参加
-  socket.on('join-client', (data) => {
-    socket.isClient = true;
-    socket.group = data.group || '1組';
-    socket.join(socket.group); // クラス別の通信部屋に入る
-    clients[socket.id] = { group: socket.group };
-    broadcastStatus();
-  });
+    // 人数のリアルタイム反映
+    socket.on('status-update', (counts) => {
+      if (!counts) return;
+      document.getElementById('cnt-all').innerText = counts['全クラス'] || 0;
+      document.getElementById('cnt-1').innerText = counts['1組'] || 0;
+      document.getElementById('cnt-2').innerText = counts['2組'] || 0;
+      document.getElementById('cnt-3').innerText = counts['3組'] || 0;
+      document.getElementById('cnt-4').innerText = counts['4組'] || 0;
+    });
 
-  // スピード（テンポ）のリアルタイム変更
-  socket.on('change-speed', (data) => {
-    currentSpeed = Number(data.speed);
-  });
+    // ★重要：接続（再接続）した瞬間にサーバーへ最新の人数を問い合わせる
+    socket.on('connect', () => {
+      socket.emit('request-status');
+    });
 
-  // 管理画面からのコマンド
-  socket.on('admin-command', (data) => {
-    stopCurrentMode();
-    const targetRoom = data.targetGroup === '全クラス' ? io : io.to(data.targetGroup);
+    // QRコード生成
+    const clientUrl = window.location.origin + '/client.html';
+    document.getElementById('qr-url').innerText = clientUrl;
+    new QRCode(document.getElementById("qrcode"), {
+      text: clientUrl,
+      width: 180,
+      height: 180
+    });
 
-    if (data.mode === 'all-on') {
-      targetRoom.emit('torch', { state: true });
-    } else if (data.mode === 'all-off') {
-      stopCurrentMode();
+    // スライダー
+    const slider = document.getElementById('speedSlider');
+    slider.addEventListener('input', (e) => {
+      const speed = e.target.value;
+      document.getElementById('speed-val').innerText = speed + 'ms';
+      socket.emit('change-speed', { speed: speed });
+    });
+
+    function sendMode(mode) {
+      const targetGroup = document.getElementById('targetGroup').value;
+      socket.emit('admin-command', { mode: mode, targetGroup: targetGroup });
     }
-    // 🎲 ランダムきらめき
-    else if (data.mode === 'random') {
-      currentTimer = setInterval(() => {
-        const clientIds = Object.keys(clients).filter(id => 
-          data.targetGroup === '全クラス' || clients[id].group === data.targetGroup
-        );
-        if (clientIds.length === 0) return;
-        const randomId = clientIds[Math.floor(Math.random() * clientIds.length)];
-        io.to(randomId).emit('pulse', { duration: Math.max(100, currentSpeed * 0.8) });
-      }, currentSpeed);
-    }
-    // ⚡ ストロボ（高速点滅）
-    else if (data.mode === 'strobe') {
-      let isOn = false;
-      currentTimer = setInterval(() => {
-        isOn = !isOn;
-        targetRoom.emit('torch', { state: isOn });
-      }, Math.max(50, currentSpeed / 2));
-    }
-    // 🏫 クラス対抗ウェーブ（1組 → 2組 → 3組 → 4組）
-    else if (data.mode === 'class-wave') {
-      const classList = ['1組', '2組', '3組', '4組'];
-      let index = 0;
-      currentTimer = setInterval(() => {
-        io.emit('torch', { state: false }); // 一旦消す
-        const targetClass = classList[index];
-        io.to(targetClass).emit('torch', { state: true }); // そのクラスだけ点灯
-        index = (index + 1) % classList.length;
-      }, currentSpeed * 2);
-    }
-  });
-
-  socket.on('disconnect', () => {
-    if (socket.isClient) {
-      delete clients[socket.id];
-      broadcastStatus();
-    }
-  });
-});
-
-const PORT = 3000;
-server.listen(PORT, () => {
-  console.log(`Server is running: http://localhost:${PORT}`);
-});
+  </script>
+</body>
+</html>
