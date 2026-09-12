@@ -24,20 +24,24 @@
     .slider-box { margin: 15px 0; padding: 10px; background: #3a3b3c; border-radius: 8px; }
     #qrcode { display: flex; justify-content: center; margin: 15px 0; background: white; padding: 15px; border-radius: 8px; }
 
-    /* タブデザイン */
-    .tab-bar { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+    /* タブバー */
+    .tab-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
     .tab-btn { width: auto; flex: 1; min-width: 70px; padding: 10px 5px; font-size: 14px; background: #3a3b3c; color: #aaa; margin: 0; }
     .tab-btn.active { background: #00bcd4; color: white; }
 
+    /* 検索バー */
+    .search-box { width: 100%; padding: 12px 15px; font-size: 15px; border-radius: 8px; border: 1px solid #4e4f50; background: #18191a; color: white; margin-bottom: 12px; box-sizing: border-box; }
+
     /* 端末グリッド一覧 */
-    .device-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; max-height: 400px; overflow-y: auto; padding-right: 5px; }
-    .device-card { background: #3a3b3c; border-radius: 8px; padding: 12px; text-align: center; border-left: 5px solid #00bcd4; }
+    .device-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; max-height: 380px; overflow-y: auto; padding-right: 5px; }
+    .device-card { background: #3a3b3c; border-radius: 8px; padding: 10px; text-align: center; border-left: 4px solid #00bcd4; }
     .device-card.on { border-left-color: #ffb703; background: #47402d; }
-    .device-name { font-weight: bold; font-size: 16px; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .device-name { font-weight: bold; font-size: 15px; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .device-actions { display: flex; gap: 6px; }
     .device-actions button { margin: 0; padding: 8px 4px; font-size: 13px; }
     .btn-single-pulse { background: #8338ec; color: white; }
     .btn-single-toggle { background: #ffb703; color: black; }
+    .limit-notice { font-size: 12px; color: #aaa; margin-top: 8px; text-align: right; }
   </style>
 </head>
 <body>
@@ -86,30 +90,33 @@
       </div>
     </div>
 
-    <!-- ★下側：個別のスマホ一覧＆操作パネル -->
+    <!-- ★軽量化＆検索つき：個別操作パネル -->
     <div class="panel-wide">
       <h2>👤 個人のスマホ操作リスト</h2>
       
-      <!-- タブバー（全体 / クラス別） -->
+      <!-- タブ切り替え（初期値は1組にして負荷軽減） -->
       <div class="tab-bar">
-        <button class="tab-btn active" onclick="filterTab('全体', this)">全体 (<span id="tab-cnt-all">0</span>)</button>
-        <button class="tab-btn" onclick="filterTab('1組', this)">1組 (<span id="tab-cnt-1">0</span>)</button>
+        <button class="tab-btn active" onclick="filterTab('1組', this)">1組 (<span id="tab-cnt-1">0</span>)</button>
         <button class="tab-btn" onclick="filterTab('2組', this)">2組 (<span id="tab-cnt-2">0</span>)</button>
         <button class="tab-btn" onclick="filterTab('3組', this)">3組 (<span id="tab-cnt-3">0</span>)</button>
         <button class="tab-btn" onclick="filterTab('4組', this)">4組 (<span id="tab-cnt-4">0</span>)</button>
+        <button class="tab-btn" onclick="filterTab('全体', this)">全体 (<span id="tab-cnt-all">0</span>)</button>
       </div>
 
+      <!-- 検索バー -->
+      <input type="text" id="searchInput" class="search-box" placeholder="🔍 名前や番号で検索（例：たろう、さくら、#10 など）" oninput="renderDevices()">
+
       <!-- スマホカード一覧 -->
-      <div id="deviceList" class="device-grid">
-        <p style="color: #888; grid-column: 1/-1; text-align: center;">スマホが接続されるとここに並びます</p>
-      </div>
+      <div id="deviceList" class="device-grid"></div>
+      <div id="limitNotice" class="limit-notice"></div>
     </div>
   </div>
 
   <script>
     const socket = io();
     let allDevices = [];
-    let currentTab = '全体';
+    let currentTab = '1組'; // ★初期表示を1組にして800人描画の負荷を回避
+    const MAX_DISPLAY = 60; // 1画面の最大表示数（PCを軽く保つリミット）
 
     socket.on('status-update', (counts) => {
       if (!counts) return;
@@ -135,7 +142,6 @@
       socket.emit('request-status');
     });
 
-    // タブ切り替え
     function filterTab(tabName, btn) {
       currentTab = tabName;
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -143,19 +149,34 @@
       renderDevices();
     }
 
-    // 個別端末の描画
+    // 描画処理（検索＆軽量化フィルター付き）
     function renderDevices() {
       const listEl = document.getElementById('deviceList');
+      const noticeEl = document.getElementById('limitNotice');
+      const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
       listEl.innerHTML = '';
 
-      const filtered = allDevices.filter(d => currentTab === '全体' || d.group === currentTab);
+      // タブで絞り込み
+      let filtered = allDevices.filter(d => currentTab === '全体' || d.group === currentTab);
+
+      // 検索キーワードで絞り込み
+      if (keyword !== '') {
+        filtered = filtered.filter(d => 
+          (d.name && d.name.toLowerCase().includes(keyword)) ||
+          (d.group && d.group.toLowerCase().includes(keyword))
+        );
+      }
 
       if (filtered.length === 0) {
-        listEl.innerHTML = '<p style="color: #888; grid-column: 1/-1; text-align: center;">このグループのスマホはありません</p>';
+        listEl.innerHTML = '<p style="color: #888; grid-column: 1/-1; text-align: center; padding: 20px;">該当するスマホが見つかりません</p>';
+        noticeEl.innerText = '';
         return;
       }
 
-      filtered.forEach(device => {
+      // 表示件数を最大60件に制限（検索すれば必ずヒットします）
+      const displayList = filtered.slice(0, MAX_DISPLAY);
+
+      displayList.forEach(device => {
         const card = document.createElement('div');
         card.className = `device-card ${device.isOn ? 'on' : ''}`;
         card.innerHTML = `
@@ -167,6 +188,12 @@
         `;
         listEl.appendChild(card);
       });
+
+      if (filtered.length > MAX_DISPLAY) {
+        noticeEl.innerText = `※多いため先頭${MAX_DISPLAY}件を表示中（全${filtered.length}件）。上の検索バーで絞り込めます！`;
+      } else {
+        noticeEl.innerText = `表示中: ${filtered.length}台`;
+      }
     }
 
     function singlePulse(id) {
@@ -181,7 +208,6 @@
       return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
     }
 
-    // QRコード生成
     const clientUrl = window.location.origin + '/client.html';
     document.getElementById('qr-url').innerText = clientUrl;
     new QRCode(document.getElementById("qrcode"), {
@@ -190,7 +216,6 @@
       height: 180
     });
 
-    // スライダー
     const slider = document.getElementById('speedSlider');
     slider.addEventListener('input', (e) => {
       const speed = e.target.value;
