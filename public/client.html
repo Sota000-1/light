@@ -1,62 +1,165 @@
-<!-- public/client.html のスクリプト部分 -->
-<script>
-  const socket = io();
-  let track = null;
-  let selectedClass = '';
-  let isJoined = false; // ★追加
+<!-- public/client.html -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>学校祭ライト端末</title>
+  <style>
+    html, body { 
+      margin: 0; padding: 0; width: 100%; height: 100%; 
+      font-family: sans-serif; text-align: center; 
+      background: #111; color: #fff; 
+      transition: background-color 0.05s ease;
+      overflow: hidden;
+    }
+    body.flash-on { background-color: #ffffff !important; color: #000 !important; }
+    
+    .container { padding: 25px 20px; box-sizing: border-box; }
+    h1 { font-size: 22px; margin-bottom: 15px; }
+    .step-box { background: #222; border-radius: 12px; padding: 15px; margin-bottom: 15px; }
+    .class-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .class-btn { padding: 14px; font-size: 18px; font-weight: bold; border-radius: 8px; border: 2px solid #555; background: #333; color: white; cursor: pointer; }
+    .class-btn.selected { background: #00bcd4; border-color: #00bcd4; }
+    .start-btn { width: 100%; padding: 16px; font-size: 19px; font-weight: bold; border-radius: 10px; border: none; background: #ff007f; color: white; cursor: pointer; display: none; margin-top: 15px; }
+    #joined-view { display: none; margin-top: 30px; }
+    .ready-badge { display: inline-block; padding: 10px 20px; border-radius: 20px; background: #4caf50; color: white; font-weight: bold; margin-top: 15px; font-size: 18px; }
+    
+    /* LINE内ブラウザなどの警告バナー */
+    #browser-warning { display: none; background: #e63946; color: white; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; line-height: 1.5; font-weight: bold; }
+  </style>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <video id="webcam" autoplay playsinline muted style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;"></video>
 
-  function selectClass(className, btn) {
-    selectedClass = className;
-    document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('selected'));
-    btn.classList.add('selected');
-    document.getElementById('startBtn').style.display = 'block';
-  }
+  <div class="container">
+    <!-- アプリ内ブラウザ警告 -->
+    <div id="browser-warning">
+      ⚠️ LINE等のアプリ内で開いています！<br>
+      右上の「︙」や共有ボタンから「ブラウザ（Chrome / Safari）で開く」を選んでください！
+    </div>
 
-  async function startCamera() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+    <div id="setup-view">
+      <h1>🎉 学校祭ライト演出</h1>
+      <div class="step-box">
+        <h3>① クラスを選んでね</h3>
+        <div class="class-grid">
+          <button class="class-btn" onclick="selectClass('1組', this)">1組</button>
+          <button class="class-btn" onclick="selectClass('2組', this)">2組</button>
+          <button class="class-btn" onclick="selectClass('3組', this)">3組</button>
+          <button class="class-btn" onclick="selectClass('4組', this)">4組</button>
+        </div>
+        <button id="startBtn" class="start-btn" onclick="startCamera()">② 参加する（カメラ許可）</button>
+      </div>
+    </div>
+
+    <div id="joined-view">
+      <h1 id="myClassTitle" style="color: #00bcd4; font-size: 26px;">1組</h1>
+      <div class="ready-badge">✨ 準備完了！指示を待機中 ✨</div>
+      <p style="color: #aaa; font-size: 14px; margin-top: 35px; line-height: 1.6;">
+        画面はこのまま開いたまま待っててね！<br>
+        <span style="color: #ffb703; font-size: 12px;">※ライトがつかない機種は画面が白く光るので、画面をステージに向けてね！</span>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+    let track = null;
+    let selectedClass = '';
+    let isJoined = false;
+
+    // LINEやInstagramなどのアプリ内ブラウザをチェック
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.indexOf('line') > -1 || ua.indexOf('instagram') > -1 || ua.indexOf('fbav') > -1) {
+      document.getElementById('browser-warning').style.display = 'block';
+    }
+
+    function selectClass(className, btn) {
+      selectedClass = className;
+      document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      document.getElementById('startBtn').style.display = 'block';
+    }
+
+    // ★ライト（torch）が付いているカメラを自動スキャンして見つける関数
+    async function findTorchCamera() {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+      // 1台ずつテストして torch をサポートしているカメラを探す
+      for (const device of videoDevices) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: device.deviceId } }
+          });
+          const t = stream.getVideoTracks()[0];
+          const caps = t.getCapabilities ? t.getCapabilities() : {};
+          if (caps.torch) {
+            return { stream, track: t }; // ライト付きカメラを発見！
+          }
+          // ライトがなければ停止して次のカメラへ
+          t.stop();
+        } catch (e) {}
+      }
+
+      // 見つからなければ通常の背面カメラ
+      const fallbackStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' } }
       });
-      track = stream.getVideoTracks()[0];
-
-      const video = document.getElementById('webcam');
-      video.srcObject = stream;
-      await video.play().catch(e => console.log(e));
-
-      isJoined = true; // ★参加状態を記録
-      socket.emit('join-client', { group: selectedClass });
-
-      document.getElementById('setup-view').style.display = 'none';
-      document.getElementById('joined-view').style.display = 'block';
-      document.getElementById('myClassTitle').innerText = `🏫 あなたは「${selectedClass}」です`;
-    } catch (err) {
-      alert('カメラの起動に失敗しました: ' + err.message);
+      return { stream: fallbackStream, track: fallbackStream.getVideoTracks()[0] };
     }
-  }
 
-  // ★電波が途切れたり管理画面側が再起動しても、自動でクラスに再参加する
-  socket.on('connect', () => {
-    if (isJoined && selectedClass) {
-      socket.emit('join-client', { group: selectedClass });
-    }
-  });
-
-  async function setTorch(state) {
-    if (state) {
-      document.body.classList.add('flash-on');
-    } else {
-      document.body.classList.remove('flash-on');
-    }
-    if (track) {
+    async function startCamera() {
       try {
-        await track.applyConstraints({ advanced: [{ torch: state }] });
-      } catch (e) {}
-    }
-  }
+        // ライト付きカメラを自動探索
+        const result = await findTorchCamera();
+        track = result.track;
 
-  socket.on('torch', (data) => setTorch(data.state));
-  socket.on('pulse', (data) => {
-    setTorch(true);
-    setTimeout(() => setTorch(false), data.duration || 200);
-  });
-</script>
+        // Android用：ビデオ要素で明示的に再生
+        const video = document.getElementById('webcam');
+        video.srcObject = result.stream;
+        await video.play().catch(e => console.log(e));
+
+        isJoined = true;
+        socket.emit('join-client', { group: selectedClass });
+
+        document.getElementById('setup-view').style.display = 'none';
+        document.getElementById('joined-view').style.display = 'block';
+        document.getElementById('myClassTitle').innerText = `🏫 あなたは「${selectedClass}」です`;
+      } catch (err) {
+        alert('カメラの起動に失敗しました。Chrome等のブラウザで開き、カメラを許可してください: ' + err.message);
+      }
+    }
+
+    // 電波復帰時
+    socket.on('connect', () => {
+      if (isJoined && selectedClass) {
+        socket.emit('join-client', { group: selectedClass });
+      }
+    });
+
+    // 点灯処理（画面フラッシュ + 背面LED）
+    async function setTorch(state) {
+      if (state) {
+        document.body.classList.add('flash-on');
+      } else {
+        document.body.classList.remove('flash-on');
+      }
+
+      if (track) {
+        try {
+          await track.applyConstraints({ advanced: [{ torch: state }] });
+        } catch (e) {}
+      }
+    }
+
+    socket.on('torch', (data) => setTorch(data.state));
+    socket.on('pulse', (data) => {
+      setTorch(true);
+      setTimeout(() => setTorch(false), data.duration || 200);
+    });
+  </script>
+</body>
+</html>
