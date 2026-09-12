@@ -1,0 +1,88 @@
+<!-- public/client.html -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>学校祭ライト端末</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 25px 15px; background: #111; color: #fff; }
+    h1 { font-size: 22px; margin-bottom: 20px; }
+    .step-box { background: #222; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .class-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .class-btn { padding: 15px; font-size: 18px; font-weight: bold; border-radius: 8px; border: 2px solid #555; background: #333; color: white; cursor: pointer; }
+    .class-btn.selected { background: #00bcd4; border-color: #00bcd4; }
+    .start-btn { width: 100%; padding: 18px; font-size: 20px; font-weight: bold; border-radius: 10px; border: none; background: #ff007f; color: white; cursor: pointer; display: none; margin-top: 15px; }
+    #joined-view { display: none; }
+    .ready-badge { display: inline-block; padding: 8px 16px; border-radius: 20px; background: #4caf50; font-weight: bold; margin-top: 15px; }
+  </style>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <div id="setup-view">
+    <h1>🎉 学校祭ライト演出</h1>
+    <div class="step-box">
+      <h3>① クラスを選んでね</h3>
+      <div class="class-grid">
+        <button class="class-btn" onclick="selectClass('1組', this)">1組</button>
+        <button class="class-btn" onclick="selectClass('2組', this)">2組</button>
+        <button class="class-btn" onclick="selectClass('3組', this)">3組</button>
+        <button class="class-btn" onclick="selectClass('4組', this)">4組</button>
+      </div>
+      <button id="startBtn" class="start-btn" onclick="startCamera()">② 参加する（カメラ許可）</button>
+    </div>
+  </div>
+
+  <div id="joined-view">
+    <h1 id="myClassTitle" style="color: #00bcd4;">1組</h1>
+    <div class="ready-badge">✨ 準備完了！指示を待っています ✨</div>
+    <p style="color: #888; font-size: 14px; margin-top: 25px;">※画面はこのまま閉じずに、スマホをステージに向けて待っててね！</p>
+  </div>
+
+  <script>
+    const socket = io();
+    let track = null;
+    let selectedClass = '';
+
+    function selectClass(className, btn) {
+      selectedClass = className;
+      document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      document.getElementById('startBtn').style.display = 'block';
+    }
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+        track = stream.getVideoTracks()[0];
+        
+        socket.emit('join-client', { group: selectedClass });
+
+        document.getElementById('setup-view').style.display = 'none';
+        document.getElementById('joined-view').style.display = 'block';
+        document.getElementById('myClassTitle').innerText = `🏫 あなたは「${selectedClass}」です`;
+      } catch (err) {
+        alert('カメラの起動に失敗しました。カメラの利用を許可してください: ' + err.message);
+      }
+    }
+
+    async function setTorch(state) {
+      if (!track) return;
+      try {
+        await track.applyConstraints({ advanced: [{ torch: state }] });
+      } catch (e) {
+        console.error('Torch error:', e);
+      }
+    }
+
+    socket.on('torch', (data) => setTorch(data.state));
+
+    socket.on('pulse', (data) => {
+      setTorch(true);
+      setTimeout(() => setTorch(false), data.duration || 200);
+    });
+  </script>
+</body>
+</html>
