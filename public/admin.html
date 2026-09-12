@@ -4,7 +4,6 @@
 <head>
   <meta charset="UTF-8">
   <title>学校祭ライト演出 司令塔</title>
-  <!-- QRコードを自動生成する外部ライブラリ -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <style>
@@ -47,7 +46,6 @@
     <div class="panel">
       <h2>🎮 演出コントローラー</h2>
       
-      <!-- 対象クラス選択 -->
       <label>操作する対象:</label>
       <select id="targetGroup" class="target-select">
         <option value="全クラス">🌟 全クラス一斉</option>
@@ -57,7 +55,6 @@
         <option value="4組">🏫 4組のみ</option>
       </select>
 
-      <!-- スピード調整スライダー -->
       <div class="slider-box">
         <label>🎛️ 点滅・テンポ速度: <strong id="speed-val" style="color: #00bcd4;">300ms</strong></label>
         <input type="range" id="speedSlider" min="80" max="800" step="20" value="300" style="width: 100%; margin-top: 8px;">
@@ -79,7 +76,22 @@
   <script>
     const socket = io();
 
-    // 現在開いているURLから自動でスマホ用のQRコードを作る
+    // 人数のリアルタイム反映
+    socket.on('status-update', (counts) => {
+      if (!counts) return;
+      document.getElementById('cnt-all').innerText = counts['全クラス'] || 0;
+      document.getElementById('cnt-1').innerText = counts['1組'] || 0;
+      document.getElementById('cnt-2').innerText = counts['2組'] || 0;
+      document.getElementById('cnt-3').innerText = counts['3組'] || 0;
+      document.getElementById('cnt-4').innerText = counts['4組'] || 0;
+    });
+
+    // ★重要：接続（再接続）した瞬間にサーバーへ最新の人数を問い合わせる
+    socket.on('connect', () => {
+      socket.emit('request-status');
+    });
+
+    // QRコード生成
     const clientUrl = window.location.origin + '/client.html';
     document.getElementById('qr-url').innerText = clientUrl;
     new QRCode(document.getElementById("qrcode"), {
@@ -88,16 +100,7 @@
       height: 180
     });
 
-    // 人数のリアルタイム反映
-    socket.on('status-update', (counts) => {
-      document.getElementById('cnt-all').innerText = counts['全クラス'];
-      document.getElementById('cnt-1').innerText = counts['1組'];
-      document.getElementById('cnt-2').innerText = counts['2組'];
-      document.getElementById('cnt-3').innerText = counts['3組'];
-      document.getElementById('cnt-4').innerText = counts['4組'];
-    });
-
-    // スライダーを動かしたとき
+    // スライダー
     const slider = document.getElementById('speedSlider');
     slider.addEventListener('input', (e) => {
       const speed = e.target.value;
