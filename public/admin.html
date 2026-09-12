@@ -7,9 +7,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 20px; background: #18191a; color: #fff; }
-    .container { display: flex; flex-wrap: wrap; gap: 20px; max-width: 1000px; margin: 0 auto; }
+    body { font-family: sans-serif; padding: 20px; background: #18191a; color: #fff; margin: 0; }
+    .container { display: flex; flex-wrap: wrap; gap: 20px; max-width: 1100px; margin: 0 auto; }
     .panel { background: #242526; padding: 20px; border-radius: 12px; flex: 1; min-width: 320px; }
+    .panel-wide { width: 100%; background: #242526; padding: 20px; border-radius: 12px; margin-top: 20px; }
     h2 { margin-top: 0; font-size: 20px; border-bottom: 2px solid #3a3b3c; padding-bottom: 8px; }
     .counts-box { display: flex; justify-content: space-around; background: #3a3b3c; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
     .count-item strong { display: block; font-size: 24px; color: #00bcd4; }
@@ -22,61 +23,94 @@
     .target-select { width: 100%; padding: 10px; font-size: 16px; border-radius: 6px; margin-bottom: 10px; background: #3a3b3c; color: white; border: none; }
     .slider-box { margin: 15px 0; padding: 10px; background: #3a3b3c; border-radius: 8px; }
     #qrcode { display: flex; justify-content: center; margin: 15px 0; background: white; padding: 15px; border-radius: 8px; }
+
+    /* タブデザイン */
+    .tab-bar { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+    .tab-btn { width: auto; flex: 1; min-width: 70px; padding: 10px 5px; font-size: 14px; background: #3a3b3c; color: #aaa; margin: 0; }
+    .tab-btn.active { background: #00bcd4; color: white; }
+
+    /* 端末グリッド一覧 */
+    .device-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; max-height: 400px; overflow-y: auto; padding-right: 5px; }
+    .device-card { background: #3a3b3c; border-radius: 8px; padding: 12px; text-align: center; border-left: 5px solid #00bcd4; }
+    .device-card.on { border-left-color: #ffb703; background: #47402d; }
+    .device-name { font-weight: bold; font-size: 16px; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .device-actions { display: flex; gap: 6px; }
+    .device-actions button { margin: 0; padding: 8px 4px; font-size: 13px; }
+    .btn-single-pulse { background: #8338ec; color: white; }
+    .btn-single-toggle { background: #ffb703; color: black; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <!-- 左側：QRコードと参加状況 -->
-    <div class="panel">
-      <h2>📱 スマホ参加用QRコード</h2>
-      <div id="qrcode"></div>
-      <p id="qr-url" style="word-break: break-all; font-size: 12px; color: #aaa; text-align: center;"></p>
+  <div style="max-width: 1100px; margin: 0 auto;">
+    <div class="container">
+      <!-- 左側：QRコードと参加人数 -->
+      <div class="panel">
+        <h2>📱 スマホ参加用QRコード</h2>
+        <div id="qrcode"></div>
+        <p id="qr-url" style="word-break: break-all; font-size: 12px; color: #aaa; text-align: center;"></p>
 
-      <h2>👥 参加人数</h2>
-      <div class="counts-box">
-        <div class="count-item">全体<strong id="cnt-all">0</strong></div>
-        <div class="count-item">1組<strong id="cnt-1">0</strong></div>
-        <div class="count-item">2組<strong id="cnt-2">0</strong></div>
-        <div class="count-item">3組<strong id="cnt-3">0</strong></div>
-        <div class="count-item">4組<strong id="cnt-4">0</strong></div>
-      </div>
-    </div>
-
-    <!-- 右側：演出コントロール -->
-    <div class="panel">
-      <h2>🎮 演出コントローラー</h2>
-      
-      <label>操作する対象:</label>
-      <select id="targetGroup" class="target-select">
-        <option value="全クラス">🌟 全クラス一斉</option>
-        <option value="1組">🏫 1組のみ</option>
-        <option value="2組">🏫 2組のみ</option>
-        <option value="3組">🏫 3組のみ</option>
-        <option value="4組">🏫 4組のみ</option>
-      </select>
-
-      <div class="slider-box">
-        <label>🎛️ 点滅・テンポ速度: <strong id="speed-val" style="color: #00bcd4;">300ms</strong></label>
-        <input type="range" id="speedSlider" min="80" max="800" step="20" value="300" style="width: 100%; margin-top: 8px;">
-        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #aaa;">
-          <span>⚡ 超高速 (BPM速い)</span>
-          <span>ゆったり 🌙</span>
+        <h2>👥 参加人数</h2>
+        <div class="counts-box">
+          <div class="count-item">全体<strong id="cnt-all">0</strong></div>
+          <div class="count-item">1組<strong id="cnt-1">0</strong></div>
+          <div class="count-item">2組<strong id="cnt-2">0</strong></div>
+          <div class="count-item">3組<strong id="cnt-3">0</strong></div>
+          <div class="count-item">4組<strong id="cnt-4">0</strong></div>
         </div>
       </div>
 
-      <button class="btn-wave" onclick="sendMode('class-wave')">🌊 クラス対抗ウェーブ (1組→2組→3組→4組)</button>
-      <button class="btn-random" onclick="sendMode('random')">🎲 ランダムきらめき</button>
-      <button class="btn-strobe" onclick="sendMode('strobe')">⚡ ストロボ（激しい点滅）</button>
-      <hr style="border-color: #3a3b3c; margin: 15px 0;">
-      <button class="btn-on" onclick="sendMode('all-on')">💡 点灯</button>
-      <button class="btn-off" onclick="sendMode('all-off')">⬛ 全員 消灯 (ストップ)</button>
+      <!-- 右側：演出コントローラー -->
+      <div class="panel">
+        <h2>🎮 全体・クラス演出</h2>
+        
+        <label>操作する対象:</label>
+        <select id="targetGroup" class="target-select">
+          <option value="全クラス">🌟 全クラス一斉</option>
+          <option value="1組">🏫 1組のみ</option>
+          <option value="2組">🏫 2組のみ</option>
+          <option value="3組">🏫 3組のみ</option>
+          <option value="4組">🏫 4組のみ</option>
+        </select>
+
+        <div class="slider-box">
+          <label>🎛️ 点滅・テンポ速度: <strong id="speed-val" style="color: #00bcd4;">300ms</strong></label>
+          <input type="range" id="speedSlider" min="80" max="800" step="20" value="300" style="width: 100%; margin-top: 8px;">
+        </div>
+
+        <button class="btn-wave" onclick="sendMode('class-wave')">🌊 クラス対抗ウェーブ</button>
+        <button class="btn-random" onclick="sendMode('random')">🎲 ランダムきらめき</button>
+        <button class="btn-strobe" onclick="sendMode('strobe')">⚡ ストロボ（激しい点滅）</button>
+        <hr style="border-color: #3a3b3c; margin: 15px 0;">
+        <button class="btn-on" onclick="sendMode('all-on')">💡 点灯</button>
+        <button class="btn-off" onclick="sendMode('all-off')">⬛ 全員 消灯 (ストップ)</button>
+      </div>
+    </div>
+
+    <!-- ★下側：個別のスマホ一覧＆操作パネル -->
+    <div class="panel-wide">
+      <h2>👤 個人のスマホ操作リスト</h2>
+      
+      <!-- タブバー（全体 / クラス別） -->
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="filterTab('全体', this)">全体 (<span id="tab-cnt-all">0</span>)</button>
+        <button class="tab-btn" onclick="filterTab('1組', this)">1組 (<span id="tab-cnt-1">0</span>)</button>
+        <button class="tab-btn" onclick="filterTab('2組', this)">2組 (<span id="tab-cnt-2">0</span>)</button>
+        <button class="tab-btn" onclick="filterTab('3組', this)">3組 (<span id="tab-cnt-3">0</span>)</button>
+        <button class="tab-btn" onclick="filterTab('4組', this)">4組 (<span id="tab-cnt-4">0</span>)</button>
+      </div>
+
+      <!-- スマホカード一覧 -->
+      <div id="deviceList" class="device-grid">
+        <p style="color: #888; grid-column: 1/-1; text-align: center;">スマホが接続されるとここに並びます</p>
+      </div>
     </div>
   </div>
 
   <script>
     const socket = io();
+    let allDevices = [];
+    let currentTab = '全体';
 
-    // 人数のリアルタイム反映
     socket.on('status-update', (counts) => {
       if (!counts) return;
       document.getElementById('cnt-all').innerText = counts['全クラス'] || 0;
@@ -84,12 +118,68 @@
       document.getElementById('cnt-2').innerText = counts['2組'] || 0;
       document.getElementById('cnt-3').innerText = counts['3組'] || 0;
       document.getElementById('cnt-4').innerText = counts['4組'] || 0;
+
+      document.getElementById('tab-cnt-all').innerText = counts['全クラス'] || 0;
+      document.getElementById('tab-cnt-1').innerText = counts['1組'] || 0;
+      document.getElementById('tab-cnt-2').innerText = counts['2組'] || 0;
+      document.getElementById('tab-cnt-3').innerText = counts['3組'] || 0;
+      document.getElementById('tab-cnt-4').innerText = counts['4組'] || 0;
     });
 
-    // ★重要：接続（再接続）した瞬間にサーバーへ最新の人数を問い合わせる
+    socket.on('client-list-update', (devices) => {
+      allDevices = devices;
+      renderDevices();
+    });
+
     socket.on('connect', () => {
       socket.emit('request-status');
     });
+
+    // タブ切り替え
+    function filterTab(tabName, btn) {
+      currentTab = tabName;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderDevices();
+    }
+
+    // 個別端末の描画
+    function renderDevices() {
+      const listEl = document.getElementById('deviceList');
+      listEl.innerHTML = '';
+
+      const filtered = allDevices.filter(d => currentTab === '全体' || d.group === currentTab);
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = '<p style="color: #888; grid-column: 1/-1; text-align: center;">このグループのスマホはありません</p>';
+        return;
+      }
+
+      filtered.forEach(device => {
+        const card = document.createElement('div');
+        card.className = `device-card ${device.isOn ? 'on' : ''}`;
+        card.innerHTML = `
+          <div class="device-name">${escapeHtml(device.name)}</div>
+          <div class="device-actions">
+            <button class="btn-single-pulse" onclick="singlePulse('${device.id}')">⚡ ピカッ</button>
+            <button class="btn-single-toggle" onclick="singleToggle('${device.id}')">${device.isOn ? '消灯' : '点灯'}</button>
+          </div>
+        `;
+        listEl.appendChild(card);
+      });
+    }
+
+    function singlePulse(id) {
+      socket.emit('single-command', { id: id, action: 'pulse' });
+    }
+
+    function singleToggle(id) {
+      socket.emit('single-command', { id: id, action: 'toggle' });
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
+    }
 
     // QRコード生成
     const clientUrl = window.location.origin + '/client.html';
