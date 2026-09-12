@@ -148,21 +148,6 @@
         } catch (e) {}
       }
     }
-    // スマホが勝手にスリープ（画面消灯）するのを防ぐ
-let wakeLock = null;
-async function keepScreenAlive() {
-  try {
-    if ('wakeLock' in navigator) {
-      wakeLock = await navigator.wakeLock.request('screen');
-      console.log('画面スリープ防止を有効化しました');
-    }
-  } catch (err) {
-    console.log('WakeLock error:', err);
-  }
-}
-
-// カメラを許可した瞬間に、スリープ防止をスタート
-// （startCamera関数の中で呼びます）
 
     socket.on('torch', (data) => setTorch(data.state));
     socket.on('pulse', (data) => {
