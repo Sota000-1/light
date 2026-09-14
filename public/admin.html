@@ -8,7 +8,7 @@
   <script src="/socket.io/socket.io.js"></script>
   <style>
     body { font-family: sans-serif; padding: 20px; background: #121314; color: #fff; margin: 0; }
-    .container { display: flex; flex-wrap: wrap; gap: 20px; max-width: 1100px; margin: 0 auto; }
+    .container { display: flex; flex-wrap: wrap; gap: 20px; max-width: 1150px; margin: 0 auto; }
     .panel { background: #1e1f20; padding: 20px; border-radius: 12px; flex: 1; min-width: 320px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
     .panel-wide { width: 100%; background: #1e1f20; padding: 20px; border-radius: 12px; margin-top: 20px; }
     h2 { margin-top: 0; font-size: 18px; border-bottom: 2px solid #333; padding-bottom: 8px; }
@@ -31,12 +31,10 @@
     .btn-black { background: #222222; border: 1px solid #555; }
     .btn-rainbow { background: linear-gradient(45deg, #ff0000, #ff7700, #ffdd00, #00ff00, #0099ff, #cc00ff); color: white; grid-column: 1 / -1; padding: 12px; }
 
-    /* 演出ボタン */
-    .btn-wave { background: #ff007f; color: white; }
-    .btn-random { background: #8338ec; color: white; }
-    .btn-strobe { background: #fb5607; color: white; }
-    .btn-torch-on { background: #ffb703; color: black; }
-    .btn-torch-off { background: #4e4f50; color: white; }
+    /* タイムライン演出プログラム */
+    .timeline-box { background: #2a2b2c; border-radius: 8px; padding: 15px; margin-top: 15px; border: 1px solid #00bcd4; }
+    .progress-bar { width: 100%; height: 8px; background: #444; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+    .progress-fill { width: 0%; height: 100%; background: #00bcd4; transition: width 0.5s linear; }
 
     /* タブ & 端末一覧 */
     .tab-bar { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
@@ -53,7 +51,7 @@
   </style>
 </head>
 <body>
-  <div style="max-width: 1100px; margin: 0 auto;">
+  <div style="max-width: 1150px; margin: 0 auto;">
     <div class="container">
       <!-- 左：QRコード＆人数 -->
       <div class="panel">
@@ -69,11 +67,32 @@
           <div class="count-item">3組<strong id="cnt-3">0</strong></div>
           <div class="count-item">4組<strong id="cnt-4">0</strong></div>
         </div>
+
+        <!-- 🎵 音楽同期プログラム再生（通信切断でも継続） -->
+        <div class="timeline-box">
+          <h3 style="margin: 0 0 8px; font-size: 16px; color: #00bcd4;">🎵 音楽タイムライン演出（完全自動）</h3>
+          <p style="font-size: 12px; color: #bbb; margin: 0 0 10px;">
+            一度スタートを押せば、途中で電波が途切れても全員のスマホが予定通り自動で光ります！
+          </p>
+          <div style="font-size: 12px; color: #aaa; line-height: 1.5; background: #1a1a1a; padding: 8px; border-radius: 6px;">
+            ⏱️ 0秒: 青（前奏） → 10秒: 紫 → 20秒: 赤（サビ） ＋ 背面ライト点灯 → 35秒: レインボー → 45秒: 消灯
+          </div>
+          <button style="background: #00bcd4; color: black; margin-top: 10px;" onclick="startTimelineProgram()">▶️ プログラムスタート</button>
+          <button style="background: #e63946; color: white;" onclick="stopAll()">⏹️ 緊急停止</button>
+          
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: #aaa; margin-top: 4px;">
+            <span id="timelineTimerText">停止中</span>
+            <span>45秒プログラム</span>
+          </div>
+        </div>
       </div>
 
-      <!-- 右：操作パネル -->
+      <!-- 右：手動操作パネル -->
       <div class="panel">
-        <h2>🎮 操作パネル</h2>
+        <h2>🎮 リアルタイム操作</h2>
         
         <label>操作対象:</label>
         <select id="targetGroup" class="target-select">
@@ -98,12 +117,12 @@
         </div>
 
         <h3 style="margin-top: 15px;">🔦 背面ライト＆点滅演出</h3>
-        <button class="btn-wave" onclick="sendMode('class-wave')">🌊 クラス対抗ウェーブ</button>
-        <button class="btn-random" onclick="sendMode('random')">🎲 ランダムきらめき</button>
-        <button class="btn-strobe" onclick="sendMode('strobe')">⚡ ストロボ（高速点滅）</button>
+        <button style="background: #ff007f; color: white;" onclick="sendMode('class-wave')">🌊 クラス対抗ウェーブ</button>
+        <button style="background: #8338ec; color: white;" onclick="sendMode('random')">🎲 ランダムきらめき</button>
+        <button style="background: #fb5607; color: white;" onclick="sendMode('strobe')">⚡ ストロボ（高速点滅）</button>
         <div style="display: flex; gap: 8px;">
-          <button class="btn-torch-on" onclick="sendMode('all-on')">💡 ライト点灯</button>
-          <button class="btn-torch-off" onclick="sendMode('all-off')">⬛ ライト消灯</button>
+          <button style="background: #ffb703; color: black;" onclick="sendMode('all-on')">💡 ライト点灯</button>
+          <button style="background: #4e4f50; color: white;" onclick="stopAll()">⬛ 全員 消灯・停止</button>
         </div>
       </div>
     </div>
@@ -128,6 +147,7 @@
     const socket = io();
     let allDevices = [];
     let currentTab = '全体';
+    let progressTimer = null;
 
     socket.on('status-update', (counts) => {
       if (!counts) return;
@@ -145,6 +165,46 @@
     });
 
     socket.on('connect', () => socket.emit('request-status'));
+
+    // 🎵 タイムライン演出の開始
+    function startTimelineProgram() {
+      // 45秒間のシナリオ定義（ミリ秒単位）
+      const timeline = [
+        { time: 0,     type: 'color',   value: '#0088ff' }, // 0秒：青（前奏）
+        { time: 10000, type: 'color',   value: '#9900ff' }, // 10秒：紫（Aメロ）
+        { time: 20000, type: 'color',   value: '#ff0055' }, // 20秒：赤（サビ！）
+        { time: 20000, type: 'torch',   value: true },      // 同時に背面ライト点灯！
+        { time: 35000, type: 'rainbow' },                   // 35秒：大サビレインボー
+        { time: 35000, type: 'torch',   value: false },     // ライト消灯
+        { time: 45000, type: 'color',   value: '#000000' }  // 45秒：暗転終了
+      ];
+
+      socket.emit('admin-start-timeline', { timeline: timeline });
+
+      // 管理画面のプログレスバーをアニメーション
+      clearInterval(progressTimer);
+      const totalDuration = 45000;
+      const startAt = Date.now();
+      progressTimer = setInterval(() => {
+        const elapsed = Date.now() - startAt;
+        const pct = Math.min(100, (elapsed / totalDuration) * 100);
+        document.getElementById('progressFill').style.width = pct + '%';
+        const sec = Math.floor(elapsed / 1000);
+        document.getElementById('timelineTimerText').innerText = `再生中: ${sec}秒 / 45秒`;
+        if (elapsed >= totalDuration) {
+          clearInterval(progressTimer);
+          document.getElementById('timelineTimerText').innerText = '完了！';
+        }
+      }, 200);
+    }
+
+    function stopAll() {
+      clearInterval(progressTimer);
+      document.getElementById('progressFill').style.width = '0%';
+      document.getElementById('timelineTimerText').innerText = '停止中';
+      sendMode('all-off');
+      setColor('#000000');
+    }
 
     function setColor(color) {
       const targetGroup = document.getElementById('targetGroup').value;
