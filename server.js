@@ -21,6 +21,7 @@ function stopCurrentMode(eventId) {
     if (clients[id].eventId === eventId) clients[id].isOn = false;
   }
   io.to(eventId).emit('stop-timeline');
+  io.to(eventId).emit('stop-effects'); // クライアント側の自律点滅・ストロボを停止
   io.to(eventId).emit('torch', { state: false });
   broadcastClientList(eventId);
 }
@@ -147,11 +148,9 @@ io.on('connection', (socket) => {
         io.to(rand.id).emit('pulse', { duration: 250 });
       }, 300);
     } else if (data.mode === 'strobe') {
-      let isOn = false;
-      currentTimers[ev] = setInterval(() => {
-        isOn = !isOn;
-        target.emit('torch', { state: isOn });
-      }, 100);
+      // クライアント側に指定された間隔（ミリ秒）を送信してローカルで高速点滅させる
+      const interval = data.interval || 100;
+      target.emit('strobe', { interval: interval });
     } else if (data.mode === 'class-wave') {
       const classList = ['1組', '2組', '3組', '4組'];
       let index = 0;
