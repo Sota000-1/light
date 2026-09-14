@@ -10,8 +10,9 @@
       margin: 0; padding: 0; width: 100%; height: 100%; 
       font-family: sans-serif; text-align: center; 
       background: #000; color: #fff; 
-      transition: background-color 0.15s ease;
+      transition: background-color 0.2s ease;
       overflow: hidden;
+      user-select: none;
     }
     .container { padding: 25px 20px; box-sizing: border-box; height: 100%; display: flex; flex-direction: column; justify-content: center; }
     h1 { font-size: 22px; margin-bottom: 15px; }
@@ -21,11 +22,30 @@
     .class-btn.selected { background: #00bcd4; border-color: #00bcd4; }
     .name-input { width: 90%; padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white; margin-top: 15px; box-sizing: border-box; }
     .start-btn { width: 100%; padding: 16px; font-size: 19px; font-weight: bold; border-radius: 10px; border: none; background: #ff007f; color: white; cursor: pointer; display: none; margin-top: 15px; }
-    #joined-view { display: none; }
-    .ready-badge { display: inline-block; padding: 10px 20px; border-radius: 20px; background: rgba(0,0,0,0.6); color: white; font-weight: bold; font-size: 16px; border: 1px solid rgba(255,255,255,0.4); }
+    
+    /* 参加後の表示スタイル（文字がふわっと消える） */
+    #joined-view { display: none; position: relative; height: 100%; }
+    .info-overlay { 
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+      display: flex; flex-direction: column; justify-content: space-between; 
+      padding: 40px 20px 20px; box-sizing: border-box;
+      transition: opacity 0.6s ease;
+      pointer-events: none;
+    }
+    .info-overlay.hidden { opacity: 0; }
+    .info-content { text-shadow: 0 2px 10px rgba(0,0,0,0.9); }
+    .ready-badge { display: inline-block; padding: 8px 18px; border-radius: 20px; background: rgba(0,0,0,0.6); color: #fff; font-size: 14px; border: 1px solid rgba(255,255,255,0.3); }
+
+    /* ログアウト（選び直す）ボタン */
+    .leave-btn {
+      pointer-events: auto;
+      margin: 0 auto 20px; padding: 10px 20px; font-size: 14px; font-weight: bold;
+      border-radius: 20px; border: 1px solid rgba(255,255,255,0.5);
+      background: rgba(0,0,0,0.6); color: #eee; cursor: pointer;
+    }
+
     #browser-warning { display: none; background: #e63946; color: white; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; font-weight: bold; }
 
-    /* レインボーアニメーション */
     @keyframes rainbow {
       0% { background-color: #ff0055; }
       20% { background-color: #ff9900; }
@@ -34,43 +54,51 @@
       80% { background-color: #00bfff; }
       100% { background-color: #9900ff; }
     }
-    .rainbow-mode {
-      animation: rainbow 6s infinite alternate ease-in-out !important;
-    }
+    .rainbow-mode { animation: rainbow 6s infinite alternate ease-in-out !important; }
   </style>
   <script src="/socket.io/socket.io.js"></script>
 </head>
-<body>
+<body onclick="toggleInfoVisibility()">
   <video id="webcam" autoplay playsinline muted style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;"></video>
 
-  <div class="container">
+  <!-- 参加前画面 -->
+  <div class="container" id="setup-view">
     <div id="browser-warning">
       ⚠️ LINE等のアプリ内で開いています！<br>
       右上の「︙」から「Chrome / Safariで開く」を選んでね！
     </div>
 
-    <div id="setup-view">
-      <h1>🎉 学校祭ペンライト演出</h1>
-      <div class="step-box">
-        <h3>① クラスを選んでね</h3>
-        <div class="class-grid">
-          <button class="class-btn" onclick="selectClass('1組', this)">1組</button>
-          <button class="class-btn" onclick="selectClass('2組', this)">2組</button>
-          <button class="class-btn" onclick="selectClass('3組', this)">3組</button>
-          <button class="class-btn" onclick="selectClass('4組', this)">4組</button>
-        </div>
-
-        <h3 style="margin-top: 20px; margin-bottom: 5px;">② なまえ（空欄OK）</h3>
-        <input type="text" id="nickname" class="name-input" placeholder="例：たろう、さくら">
-
-        <button id="startBtn" class="start-btn" onclick="startCamera()">③ 参加する（カメラ許可）</button>
+    <h1>🎉 学校祭ペンライト演出</h1>
+    <div class="step-box">
+      <h3>① クラスを選んでね</h3>
+      <div class="class-grid">
+        <button class="class-btn" onclick="selectClass('1組', this)">1組</button>
+        <button class="class-btn" onclick="selectClass('2組', this)">2組</button>
+        <button class="class-btn" onclick="selectClass('3組', this)">3組</button>
+        <button class="class-btn" onclick="selectClass('4組', this)">4組</button>
       </div>
-    </div>
 
-    <div id="joined-view">
-      <h1 id="myClassTitle" style="font-size: 32px; text-shadow: 0 2px 8px rgba(0,0,0,0.8);">1組</h1>
-      <h2 id="myNameTitle" style="font-size: 22px; margin-top: -10px; text-shadow: 0 2px 8px rgba(0,0,0,0.8);"></h2>
-      <div class="ready-badge">✨ ステージに向けて掲げてね ✨</div>
+      <h3 style="margin-top: 20px; margin-bottom: 5px;">② なまえ（空欄OK）</h3>
+      <input type="text" id="nickname" class="name-input" placeholder="例：たろう、さくら">
+
+      <button id="startBtn" class="start-btn" onclick="startCamera()">③ 参加する（カメラ許可）</button>
+    </div>
+  </div>
+
+  <!-- 参加後画面（ペンライト） -->
+  <div id="joined-view">
+    <div class="info-overlay" id="infoOverlay">
+      <div class="info-content">
+        <h1 id="myClassTitle" style="font-size: 32px; margin: 0;">1組</h1>
+        <h2 id="myNameTitle" style="font-size: 20px; color: #ffb703; margin: 5px 0 15px;"></h2>
+        <div class="ready-badge">✨ ステージに向けて掲げてね ✨</div>
+        <p style="font-size: 11px; color: #aaa; margin-top: 8px;">（画面タップで文字の表示 / 非表示）</p>
+      </div>
+
+      <!-- 🔄 クラス選び直しボタン -->
+      <div>
+        <button class="leave-btn" onclick="leaveClass(event)">🔄 クラスを選び直す</button>
+      </div>
     </div>
   </div>
 
@@ -79,8 +107,9 @@
     let track = null;
     let selectedClass = '';
     let isJoined = false;
+    let infoTimer = null;
+    let timelineTimeouts = [];
 
-    // スリープ防止
     async function keepScreenAlive() {
       try {
         if ('wakeLock' in navigator) await navigator.wakeLock.request('screen');
@@ -118,12 +147,13 @@
     async function startCamera() {
       try {
         keepScreenAlive();
-        const result = await findTorchCamera();
-        track = result.track;
-
-        const video = document.getElementById('webcam');
-        video.srcObject = result.stream;
-        await video.play().catch(e => console.log(e));
+        if (!track) {
+          const result = await findTorchCamera();
+          track = result.track;
+          const video = document.getElementById('webcam');
+          video.srcObject = result.stream;
+          await video.play().catch(e => console.log(e));
+        }
 
         isJoined = true;
         const name = document.getElementById('nickname').value;
@@ -132,10 +162,48 @@
         document.getElementById('setup-view').style.display = 'none';
         document.getElementById('joined-view').style.display = 'block';
         document.getElementById('myClassTitle').innerText = `🏫 ${selectedClass}`;
-        if (name) document.getElementById('myNameTitle').innerText = `👤 ${name}`;
+        document.getElementById('myNameTitle').innerText = name ? `👤 ${name}` : '';
+
+        // ★3秒後に文字を自動フェードアウトしてペンライトに専念！
+        scheduleHideInfo();
       } catch (err) {
         alert('カメラの起動に失敗しました: ' + err.message);
       }
+    }
+
+    // 🔄 クラス選び直し（ログアウト）
+    function leaveClass(e) {
+      if (e) e.stopPropagation(); // 画面タップイベントを止める
+      clearTimeline();
+      socket.emit('leave-client');
+      isJoined = false;
+      document.body.style.backgroundColor = '#000';
+      document.body.classList.remove('rainbow-mode');
+      setTorch(false);
+
+      document.getElementById('joined-view').style.display = 'none';
+      document.getElementById('setup-view').style.display = 'flex';
+      document.getElementById('startBtn').style.display = 'none';
+      document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('selected'));
+    }
+
+    // 文字のフェードイン/アウト切り替え
+    function toggleInfoVisibility() {
+      if (!isJoined) return;
+      const overlay = document.getElementById('infoOverlay');
+      if (overlay.classList.contains('hidden')) {
+        overlay.classList.remove('hidden');
+        scheduleHideInfo();
+      } else {
+        overlay.classList.add('hidden');
+      }
+    }
+
+    function scheduleHideInfo() {
+      clearTimeout(infoTimer);
+      infoTimer = setTimeout(() => {
+        document.getElementById('infoOverlay').classList.add('hidden');
+      }, 3500);
     }
 
     socket.on('connect', () => {
@@ -145,17 +213,41 @@
       }
     });
 
-    // 画面の色を変更
     socket.on('set-color', (data) => {
+      clearTimeline();
+      applyColor(data);
+    });
+
+    function applyColor(data) {
       document.body.classList.remove('rainbow-mode');
       if (data.mode === 'rainbow') {
         document.body.classList.add('rainbow-mode');
       } else {
         document.body.style.backgroundColor = data.color || '#000000';
       }
+    }
+
+    // 🎵 タイムライン自律再生（電波が切れてもスマホ自身が予定通り進める！）
+    socket.on('start-timeline', (data) => {
+      clearTimeline();
+      const delay = Math.max(0, data.startTime - Date.now());
+      data.timeline.forEach(step => {
+        const timer = setTimeout(() => {
+          if (step.type === 'color') applyColor({ color: step.value });
+          if (step.type === 'rainbow') applyColor({ mode: 'rainbow' });
+          if (step.type === 'torch') setTorch(step.value);
+        }, delay + step.time);
+        timelineTimeouts.push(timer);
+      });
     });
 
-    // 背面ライト制御
+    socket.on('stop-timeline', clearTimeline);
+
+    function clearTimeline() {
+      timelineTimeouts.forEach(t => clearTimeout(t));
+      timelineTimeouts = [];
+    }
+
     async function setTorch(state) {
       if (track) {
         try {
