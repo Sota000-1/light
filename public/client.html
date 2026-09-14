@@ -6,54 +6,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>学校祭ペンライト</title>
   <style>
-    html, body { 
-      margin: 0; padding: 0; width: 100%; height: 100%; 
-      font-family: sans-serif; text-align: center; 
-      background: #000; color: #fff; 
-      transition: background-color 0.2s ease;
-      overflow: hidden;
-      user-select: none;
-    }
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; font-family: sans-serif; text-align: center; background: #000; color: #fff; transition: background-color 0.2s ease; overflow: hidden; user-select: none; }
     .container { padding: 25px 20px; box-sizing: border-box; height: 100%; display: flex; flex-direction: column; justify-content: center; }
-    h1 { font-size: 22px; margin-bottom: 15px; }
+    h1 { font-size: 22px; margin-bottom: 10px; }
+    .event-badge { display: inline-block; background: #00bcd4; color: black; font-weight: bold; padding: 4px 12px; border-radius: 12px; font-size: 13px; margin-bottom: 12px; }
     .step-box { background: #1a1a1a; border-radius: 12px; padding: 20px; border: 1px solid #333; }
     .class-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
     .class-btn { padding: 14px; font-size: 18px; font-weight: bold; border-radius: 8px; border: 2px solid #555; background: #2a2a2a; color: white; cursor: pointer; }
     .class-btn.selected { background: #00bcd4; border-color: #00bcd4; }
     .name-input { width: 90%; padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white; margin-top: 15px; box-sizing: border-box; }
     .start-btn { width: 100%; padding: 16px; font-size: 19px; font-weight: bold; border-radius: 10px; border: none; background: #ff007f; color: white; cursor: pointer; display: none; margin-top: 15px; }
-    
-    /* 参加後の表示スタイル（文字がふわっと消える） */
     #joined-view { display: none; position: relative; height: 100%; }
-    .info-overlay { 
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-      display: flex; flex-direction: column; justify-content: space-between; 
-      padding: 40px 20px 20px; box-sizing: border-box;
-      transition: opacity 0.6s ease;
-      pointer-events: none;
-    }
+    .info-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: space-between; padding: 40px 20px 20px; box-sizing: border-box; transition: opacity 0.6s ease; pointer-events: none; }
     .info-overlay.hidden { opacity: 0; }
     .info-content { text-shadow: 0 2px 10px rgba(0,0,0,0.9); }
     .ready-badge { display: inline-block; padding: 8px 18px; border-radius: 20px; background: rgba(0,0,0,0.6); color: #fff; font-size: 14px; border: 1px solid rgba(255,255,255,0.3); }
-
-    /* ログアウト（選び直す）ボタン */
-    .leave-btn {
-      pointer-events: auto;
-      margin: 0 auto 20px; padding: 10px 20px; font-size: 14px; font-weight: bold;
-      border-radius: 20px; border: 1px solid rgba(255,255,255,0.5);
-      background: rgba(0,0,0,0.6); color: #eee; cursor: pointer;
-    }
-
+    .leave-btn { pointer-events: auto; margin: 0 auto 20px; padding: 10px 20px; font-size: 14px; font-weight: bold; border-radius: 20px; border: 1px solid rgba(255,255,255,0.5); background: rgba(0,0,0,0.6); color: #eee; cursor: pointer; }
     #browser-warning { display: none; background: #e63946; color: white; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; font-weight: bold; }
-
-    @keyframes rainbow {
-      0% { background-color: #ff0055; }
-      20% { background-color: #ff9900; }
-      40% { background-color: #ffe600; }
-      60% { background-color: #00ff66; }
-      80% { background-color: #00bfff; }
-      100% { background-color: #9900ff; }
-    }
+    @keyframes rainbow { 0% { background-color: #ff0055; } 20% { background-color: #ff9900; } 40% { background-color: #ffe600; } 60% { background-color: #00ff66; } 80% { background-color: #00bfff; } 100% { background-color: #9900ff; } }
     .rainbow-mode { animation: rainbow 6s infinite alternate ease-in-out !important; }
   </style>
   <script src="/socket.io/socket.io.js"></script>
@@ -61,14 +31,14 @@
 <body onclick="toggleInfoVisibility()">
   <video id="webcam" autoplay playsinline muted style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;"></video>
 
-  <!-- 参加前画面 -->
   <div class="container" id="setup-view">
-    <div id="browser-warning">
-      ⚠️ LINE等のアプリ内で開いています！<br>
-      右上の「︙」から「Chrome / Safariで開く」を選んでね！
+    <div id="browser-warning">⚠️ LINE等のアプリ内で開いています！<br>右上の「︙」から「Chrome / Safariで開く」を選んでね！</div>
+    
+    <div>
+      <span class="event-badge" id="eventBadge">🎪 メイン会場</span>
+      <h1>🎉 学校祭ペンライト</h1>
     </div>
 
-    <h1>🎉 学校祭ペンライト演出</h1>
     <div class="step-box">
       <h3>① クラスを選んでね</h3>
       <div class="class-grid">
@@ -77,25 +47,21 @@
         <button class="class-btn" onclick="selectClass('3組', this)">3組</button>
         <button class="class-btn" onclick="selectClass('4組', this)">4組</button>
       </div>
-
       <h3 style="margin-top: 20px; margin-bottom: 5px;">② なまえ（空欄OK）</h3>
       <input type="text" id="nickname" class="name-input" placeholder="例：たろう、さくら">
-
       <button id="startBtn" class="start-btn" onclick="startCamera()">③ 参加する（カメラ許可）</button>
     </div>
   </div>
 
-  <!-- 参加後画面（ペンライト） -->
   <div id="joined-view">
     <div class="info-overlay" id="infoOverlay">
       <div class="info-content">
-        <h1 id="myClassTitle" style="font-size: 32px; margin: 0;">1組</h1>
+        <span class="event-badge" id="eventBadgeJoined" style="background: rgba(0,0,0,0.6); color: #00bcd4; border: 1px solid #00bcd4;"></span>
+        <h1 id="myClassTitle" style="font-size: 32px; margin: 8px 0 0;">1組</h1>
         <h2 id="myNameTitle" style="font-size: 20px; color: #ffb703; margin: 5px 0 15px;"></h2>
         <div class="ready-badge">✨ ステージに向けて掲げてね ✨</div>
-        <p style="font-size: 11px; color: #aaa; margin-top: 8px;">（画面タップで文字の表示 / 非表示）</p>
+        <p style="font-size: 11px; color: #aaa; margin-top: 8px;">（画面タップで表示/非表示）</p>
       </div>
-
-      <!-- 🔄 クラス選び直しボタン -->
       <div>
         <button class="leave-btn" onclick="leaveClass(event)">🔄 クラスを選び直す</button>
       </div>
@@ -110,10 +76,15 @@
     let infoTimer = null;
     let timelineTimeouts = [];
 
+    // URLからイベントIDを取得（例: ?event=gym なら gym）
+    const urlParams = new URLSearchParams(window.location.search);
+    const eventId = urlParams.get('event') || 'main';
+    const eventName = urlParams.get('name') || (eventId === 'main' ? 'メイン会場' : eventId);
+    document.getElementById('eventBadge').innerText = `🎪 ${eventName}`;
+    document.getElementById('eventBadgeJoined').innerText = `🎪 ${eventName}`;
+
     async function keepScreenAlive() {
-      try {
-        if ('wakeLock' in navigator) await navigator.wakeLock.request('screen');
-      } catch (e) {}
+      try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) {}
     }
 
     const ua = navigator.userAgent.toLowerCase();
@@ -157,23 +128,21 @@
 
         isJoined = true;
         const name = document.getElementById('nickname').value;
-        socket.emit('join-client', { group: selectedClass, name: name });
+        socket.emit('join-client', { eventId: eventId, group: selectedClass, name: name });
 
         document.getElementById('setup-view').style.display = 'none';
         document.getElementById('joined-view').style.display = 'block';
         document.getElementById('myClassTitle').innerText = `🏫 ${selectedClass}`;
         document.getElementById('myNameTitle').innerText = name ? `👤 ${name}` : '';
 
-        // ★3秒後に文字を自動フェードアウトしてペンライトに専念！
         scheduleHideInfo();
       } catch (err) {
         alert('カメラの起動に失敗しました: ' + err.message);
       }
     }
 
-    // 🔄 クラス選び直し（ログアウト）
     function leaveClass(e) {
-      if (e) e.stopPropagation(); // 画面タップイベントを止める
+      if (e) e.stopPropagation();
       clearTimeline();
       socket.emit('leave-client');
       isJoined = false;
@@ -187,7 +156,6 @@
       document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('selected'));
     }
 
-    // 文字のフェードイン/アウト切り替え
     function toggleInfoVisibility() {
       if (!isJoined) return;
       const overlay = document.getElementById('infoOverlay');
@@ -209,7 +177,7 @@
     socket.on('connect', () => {
       if (isJoined && selectedClass) {
         const name = document.getElementById('nickname').value;
-        socket.emit('join-client', { group: selectedClass, name: name });
+        socket.emit('join-client', { eventId: eventId, group: selectedClass, name: name });
       }
     });
 
@@ -227,7 +195,6 @@
       }
     }
 
-    // 🎵 タイムライン自律再生（電波が切れてもスマホ自身が予定通り進める！）
     socket.on('start-timeline', (data) => {
       clearTimeline();
       const delay = Math.max(0, data.startTime - Date.now());
@@ -250,9 +217,7 @@
 
     async function setTorch(state) {
       if (track) {
-        try {
-          await track.applyConstraints({ advanced: [{ torch: state }] });
-        } catch (e) {}
+        try { await track.applyConstraints({ advanced: [{ torch: state }] }); } catch (e) {}
       }
     }
 
