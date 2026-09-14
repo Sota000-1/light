@@ -18,23 +18,27 @@
     .target-select { width: 100%; padding: 10px; font-size: 16px; border-radius: 6px; margin-bottom: 10px; background: #2a2b2c; color: white; border: none; }
     #qrcode { display: flex; justify-content: center; margin: 15px 0; background: white; padding: 15px; border-radius: 8px; }
 
+    /* イベント切り替えヘッダー */
+    .event-bar { max-width: 1150px; margin: 0 auto 15px; background: #1e1f20; padding: 12px 20px; border-radius: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; border: 1px solid #00bcd4; }
+    .event-bar select { padding: 8px 12px; font-size: 15px; border-radius: 6px; background: #2a2b2c; color: white; border: 1px solid #555; }
+
     /* カラーパレット */
     .color-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
     .color-btn { margin: 0; padding: 14px 5px; font-size: 13px; font-weight: bold; border-radius: 6px; border: none; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
-    .btn-red { background: #ff0055; }
-    .btn-blue { background: #0088ff; }
-    .btn-yellow { background: #ffd000; color: #000; text-shadow: none; }
-    .btn-green { background: #00cc44; }
-    .btn-purple { background: #9900ff; }
-    .btn-pink { background: #ff66cc; }
-    .btn-white { background: #ffffff; color: #000; text-shadow: none; }
-    .btn-black { background: #222222; border: 1px solid #555; }
+    .btn-red { background: #ff0055; } .btn-blue { background: #0088ff; } .btn-yellow { background: #ffd000; color: #000; text-shadow: none; } .btn-green { background: #00cc44; } .btn-purple { background: #9900ff; } .btn-pink { background: #ff66cc; } .btn-white { background: #ffffff; color: #000; text-shadow: none; } .btn-black { background: #222222; border: 1px solid #555; }
     .btn-rainbow { background: linear-gradient(45deg, #ff0000, #ff7700, #ffdd00, #00ff00, #0099ff, #cc00ff); color: white; grid-column: 1 / -1; padding: 12px; }
 
-    /* タイムライン演出プログラム */
+    /* タイムライン */
     .timeline-box { background: #2a2b2c; border-radius: 8px; padding: 15px; margin-top: 15px; border: 1px solid #00bcd4; }
     .progress-bar { width: 100%; height: 8px; background: #444; border-radius: 4px; overflow: hidden; margin-top: 8px; }
-    .progress-fill { width: 0%; height: 100%; background: #00bcd4; transition: width 0.5s linear; }
+    .progress-fill { width: 0%; height: 100%; background: #00bcd4; transition: width 0.3s linear; }
+
+    /* 設定モーダル（プログラム編集） */
+    #editModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-content { background: #1e1f20; width: 90%; max-width: 550px; max-height: 85vh; border-radius: 12px; padding: 25px; box-sizing: border-box; overflow-y: auto; border: 1px solid #00bcd4; }
+    .step-row { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; background: #2a2b2c; padding: 8px; border-radius: 6px; }
+    .step-row input, .step-row select { padding: 8px; border-radius: 4px; border: 1px solid #444; background: #121314; color: white; font-size: 14px; }
+    .btn-del { width: auto; background: #e63946; padding: 6px 10px; margin: 0; }
 
     /* タブ & 端末一覧 */
     .tab-bar { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
@@ -46,90 +50,99 @@
     .device-name { font-weight: bold; font-size: 15px; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .device-actions { display: flex; gap: 6px; }
     .device-actions button { margin: 0; padding: 8px 4px; font-size: 13px; }
-    .btn-single-pulse { background: #8338ec; color: white; }
-    .btn-single-toggle { background: #ffb703; color: black; }
   </style>
 </head>
 <body>
-  <div style="max-width: 1150px; margin: 0 auto;">
-    <div class="container">
-      <!-- 左：QRコード＆人数 -->
-      <div class="panel">
-        <h2>📱 スマホ参加用QRコード</h2>
-        <div id="qrcode"></div>
-        <p id="qr-url" style="word-break: break-all; font-size: 12px; color: #aaa; text-align: center;"></p>
+  <!-- 🎪 イベント（部屋）切り替えバー -->
+  <div class="event-bar">
+    <div>
+      <strong>🎪 現在操作中のイベント:</strong>
+      <select id="eventSelect" onchange="changeEvent()">
+        <option value="main">メイン会場（全体）</option>
+        <option value="gym">体育館ステージ</option>
+        <option value="courtyard">中庭ステージ</option>
+        <option value="class3a">3年A組</option>
+        <option value="custom">＋ 新しいイベントを作成...</option>
+      </select>
+    </div>
+    <span style="font-size: 12px; color: #aaa;">※イベントごとにQRと端末が完全に分離されます</span>
+  </div>
 
-        <h2>👥 参加人数</h2>
-        <div class="counts-box">
-          <div class="count-item">全体<strong id="cnt-all">0</strong></div>
-          <div class="count-item">1組<strong id="cnt-1">0</strong></div>
-          <div class="count-item">2組<strong id="cnt-2">0</strong></div>
-          <div class="count-item">3組<strong id="cnt-3">0</strong></div>
-          <div class="count-item">4組<strong id="cnt-4">0</strong></div>
-        </div>
+  <div class="container">
+    <!-- 左：QRコード＆人数 -->
+    <div class="panel">
+      <h2>📱 <span id="panelEventTitle">メイン会場</span> のQRコード</h2>
+      <div id="qrcode"></div>
+      <p id="qr-url" style="word-break: break-all; font-size: 12px; color: #aaa; text-align: center;"></p>
 
-        <!-- 🎵 音楽同期プログラム再生（通信切断でも継続） -->
-        <div class="timeline-box">
-          <h3 style="margin: 0 0 8px; font-size: 16px; color: #00bcd4;">🎵 音楽タイムライン演出（完全自動）</h3>
-          <p style="font-size: 12px; color: #bbb; margin: 0 0 10px;">
-            一度スタートを押せば、途中で電波が途切れても全員のスマホが予定通り自動で光ります！
-          </p>
-          <div style="font-size: 12px; color: #aaa; line-height: 1.5; background: #1a1a1a; padding: 8px; border-radius: 6px;">
-            ⏱️ 0秒: 青（前奏） → 10秒: 紫 → 20秒: 赤（サビ） ＋ 背面ライト点灯 → 35秒: レインボー → 45秒: 消灯
-          </div>
-          <button style="background: #00bcd4; color: black; margin-top: 10px;" onclick="startTimelineProgram()">▶️ プログラムスタート</button>
-          <button style="background: #e63946; color: white;" onclick="stopAll()">⏹️ 緊急停止</button>
-          
-          <div class="progress-bar">
-            <div class="progress-fill" id="progressFill"></div>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 11px; color: #aaa; margin-top: 4px;">
-            <span id="timelineTimerText">停止中</span>
-            <span>45秒プログラム</span>
-          </div>
-        </div>
+      <h2>👥 参加人数</h2>
+      <div class="counts-box">
+        <div class="count-item">全体<strong id="cnt-all">0</strong></div>
+        <div class="count-item">1組<strong id="cnt-1">0</strong></div>
+        <div class="count-item">2組<strong id="cnt-2">0</strong></div>
+        <div class="count-item">3組<strong id="cnt-3">0</strong></div>
+        <div class="count-item">4組<strong id="cnt-4">0</strong></div>
       </div>
 
-      <!-- 右：手動操作パネル -->
-      <div class="panel">
-        <h2>🎮 リアルタイム操作</h2>
-        
-        <label>操作対象:</label>
-        <select id="targetGroup" class="target-select">
-          <option value="全クラス">🌟 全クラス一斉</option>
-          <option value="1組">🏫 1組のみ</option>
-          <option value="2組">🏫 2組のみ</option>
-          <option value="3組">🏫 3組のみ</option>
-          <option value="4組">🏫 4組のみ</option>
-        </select>
-
-        <h3>🎨 画面カラー（ペンライト）</h3>
-        <div class="color-grid">
-          <button class="color-btn btn-red" onclick="setColor('#ff0055')">🔴 赤</button>
-          <button class="color-btn btn-blue" onclick="setColor('#0088ff')">🔵 青</button>
-          <button class="color-btn btn-yellow" onclick="setColor('#ffd000')">🟡 黄</button>
-          <button class="color-btn btn-green" onclick="setColor('#00cc44')">🟢 緑</button>
-          <button class="color-btn btn-purple" onclick="setColor('#9900ff')">🟣 紫</button>
-          <button class="color-btn btn-pink" onclick="setColor('#ff66cc')">🌸 ピンク</button>
-          <button class="color-btn btn-white" onclick="setColor('#ffffff')">⚪ 白</button>
-          <button class="color-btn btn-black" onclick="setColor('#000000')">⬛ 暗転</button>
-          <button class="color-btn btn-rainbow" onclick="setColor('rainbow')">🌈 幻想的レインボー演出</button>
+      <!-- タイムラインプログラム -->
+      <div class="timeline-box">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 15px; color: #00bcd4;">🎵 音楽タイムライン演出</h3>
+          <button style="width: auto; margin: 0; padding: 5px 10px; font-size: 12px; background: #444;" onclick="openEditModal()">⚙️ 設定・編集</button>
         </div>
-
-        <h3 style="margin-top: 15px;">🔦 背面ライト＆点滅演出</h3>
-        <button style="background: #ff007f; color: white;" onclick="sendMode('class-wave')">🌊 クラス対抗ウェーブ</button>
-        <button style="background: #8338ec; color: white;" onclick="sendMode('random')">🎲 ランダムきらめき</button>
-        <button style="background: #fb5607; color: white;" onclick="sendMode('strobe')">⚡ ストロボ（高速点滅）</button>
-        <div style="display: flex; gap: 8px;">
-          <button style="background: #ffb703; color: black;" onclick="sendMode('all-on')">💡 ライト点灯</button>
-          <button style="background: #4e4f50; color: white;" onclick="stopAll()">⬛ 全員 消灯・停止</button>
+        <p id="timelineSummary" style="font-size: 11px; color: #bbb; margin: 8px 0; background: #1a1a1a; padding: 8px; border-radius: 6px; line-height: 1.4;"></p>
+        
+        <button style="background: #00bcd4; color: black; margin-top: 5px;" onclick="startTimelineProgram()">▶️ プログラムスタート</button>
+        <button style="background: #e63946; color: white;" onclick="stopAll()">⏹️ 緊急停止</button>
+        
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #aaa; margin-top: 4px;">
+          <span id="timelineTimerText">停止中</span>
+          <span id="timelineTotalText">0秒プログラム</span>
         </div>
       </div>
     </div>
 
-    <!-- 下：個別操作 -->
+    <!-- 右：リアルタイム操作 -->
+    <div class="panel">
+      <h2>🎮 リアルタイム操作</h2>
+      <label>操作対象:</label>
+      <select id="targetGroup" class="target-select">
+        <option value="全クラス">🌟 全クラス一斉</option>
+        <option value="1組">🏫 1組のみ</option>
+        <option value="2組">🏫 2組のみ</option>
+        <option value="3組">🏫 3組のみ</option>
+        <option value="4組">🏫 4組のみ</option>
+      </select>
+
+      <h3>🎨 画面カラー（ペンライト）</h3>
+      <div class="color-grid">
+        <button class="color-btn btn-red" onclick="setColor('#ff0055')">🔴 赤</button>
+        <button class="color-btn btn-blue" onclick="setColor('#0088ff')">🔵 青</button>
+        <button class="color-btn btn-yellow" onclick="setColor('#ffd000')">🟡 黄</button>
+        <button class="color-btn btn-green" onclick="setColor('#00cc44')">🟢 緑</button>
+        <button class="color-btn btn-purple" onclick="setColor('#9900ff')">🟣 紫</button>
+        <button class="color-btn btn-pink" onclick="setColor('#ff66cc')">🌸 ピンク</button>
+        <button class="color-btn btn-white" onclick="setColor('#ffffff')">⚪ 白</button>
+        <button class="color-btn btn-black" onclick="setColor('#000000')">⬛ 暗転</button>
+        <button class="color-btn btn-rainbow" onclick="setColor('rainbow')">🌈 幻想的レインボー演出</button>
+      </div>
+
+      <h3 style="margin-top: 15px;">🔦 背面ライト＆点滅演出</h3>
+      <button style="background: #ff007f; color: white;" onclick="sendMode('class-wave')">🌊 クラス対抗ウェーブ</button>
+      <button style="background: #8338ec; color: white;" onclick="sendMode('random')">🎲 ランダムきらめき</button>
+      <button style="background: #fb5607; color: white;" onclick="sendMode('strobe')">⚡ ストロボ（高速点滅）</button>
+      <div style="display: flex; gap: 8px;">
+        <button style="background: #ffb703; color: black;" onclick="sendMode('all-on')">💡 ライト点灯</button>
+        <button style="background: #4e4f50; color: white;" onclick="stopAll()">⬛ 全員 消灯</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 下：個別操作リスト -->
+  <div class="container">
     <div class="panel-wide">
-      <h2>👤 個人のスマホ操作リスト</h2>
+      <h2>👤 <span id="listEventTitle">メイン会場</span> のスマホ一覧</h2>
       <div class="tab-bar">
         <button class="tab-btn active" onclick="filterTab('全体', this)">全体 (<span id="tab-cnt-all">0</span>)</button>
         <button class="tab-btn" onclick="filterTab('1組', this)">1組 (<span id="tab-cnt-1">0</span>)</button>
@@ -143,11 +156,75 @@
     </div>
   </div>
 
+  <!-- ⚙️ プログラム編集モーダル画面 -->
+  <div id="editModal">
+    <div class="modal-content">
+      <h3 style="margin-top: 0; color: #00bcd4;">⚙️ タイムライン演出のプログラム設定</h3>
+      <p style="font-size: 12px; color: #aaa;">秒数と演出のアクションを自由に追加・設定できます</p>
+      <div id="stepContainer"></div>
+      <button style="background: #333; color: #00bcd4; border: 1px dashed #00bcd4; margin-top: 10px;" onclick="addStepRow(0, 'color', '#0088ff')">＋ ステップを追加</button>
+      <hr style="border-color: #333; margin: 15px 0;">
+      <div style="display: flex; gap: 10px;">
+        <button style="background: #00bcd4; color: black;" onclick="saveTimelineSettings()">💾 保存して閉じる</button>
+        <button style="background: #555; color: white;" onclick="closeEditModal()">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const socket = io();
+    let currentEventId = 'main';
     let allDevices = [];
     let currentTab = '全体';
     let progressTimer = null;
+    let qrObj = null;
+
+    // デフォルトのタイムラインデータ
+    let currentTimeline = JSON.parse(localStorage.getItem('my_timeline')) || [
+      { sec: 0,  type: 'color',   value: '#0088ff', label: '青' },
+      { sec: 10, type: 'color',   value: '#9900ff', label: '紫' },
+      { sec: 20, type: 'color',   value: '#ff0055', label: '赤' },
+      { sec: 20, type: 'torch',   value: true,      label: 'ライトON' },
+      { sec: 35, type: 'rainbow', value: 'rainbow', label: 'レインボー' },
+      { sec: 35, type: 'torch',   value: false,     label: 'ライトOFF' },
+      { sec: 45, type: 'color',   value: '#000000', label: '消灯' }
+    ];
+
+    function initEvent() {
+      const select = document.getElementById('eventSelect');
+      currentEventId = select.value;
+      const eventName = select.options[select.selectedIndex].text;
+      document.getElementById('panelEventTitle').innerText = eventName;
+      document.getElementById('listEventTitle').innerText = eventName;
+
+      // サーバーにイベント部屋参加
+      socket.emit('join-admin', { eventId: currentEventId });
+
+      // 専用QRコードの生成
+      const clientUrl = `${window.location.origin}/client.html?event=${currentEventId}&name=${encodeURIComponent(eventName)}`;
+      document.getElementById('qr-url').innerText = clientUrl;
+      const qrel = document.getElementById("qrcode");
+      qrel.innerHTML = '';
+      qrObj = new QRCode(qrel, { text: clientUrl, width: 170, height: 170 });
+
+      updateTimelineSummary();
+    }
+
+    function changeEvent() {
+      const select = document.getElementById('eventSelect');
+      if (select.value === 'custom') {
+        const customName = prompt('新しいイベント名（または教室名）を入力してください（例：後夜祭、体育館）:');
+        if (customName) {
+          const customId = 'ev_' + Date.now();
+          const opt = new Option(customName, customId);
+          select.add(opt, select.options[select.options.length - 1]);
+          select.value = customId;
+        } else {
+          select.value = 'main';
+        }
+      }
+      initEvent();
+    }
 
     socket.on('status-update', (counts) => {
       if (!counts) return;
@@ -164,38 +241,115 @@
       renderDevices();
     });
 
-    socket.on('connect', () => socket.emit('request-status'));
+    socket.on('connect', () => initEvent());
 
-    // 🎵 タイムライン演出の開始
+    // タイムライン概要の更新
+    function updateTimelineSummary() {
+      currentTimeline.sort((a, b) => a.sec - b.sec);
+      const text = currentTimeline.map(s => `${s.sec}秒: ${s.label || s.value}`).join(' → ');
+      document.getElementById('timelineSummary').innerText = text;
+      const maxSec = currentTimeline.length > 0 ? currentTimeline[currentTimeline.length - 1].sec : 0;
+      document.getElementById('timelineTotalText').innerText = `${maxSec}秒プログラム`;
+    }
+
+    // タイムライン再生スタート
     function startTimelineProgram() {
-      // 45秒間のシナリオ定義（ミリ秒単位）
-      const timeline = [
-        { time: 0,     type: 'color',   value: '#0088ff' }, // 0秒：青（前奏）
-        { time: 10000, type: 'color',   value: '#9900ff' }, // 10秒：紫（Aメロ）
-        { time: 20000, type: 'color',   value: '#ff0055' }, // 20秒：赤（サビ！）
-        { time: 20000, type: 'torch',   value: true },      // 同時に背面ライト点灯！
-        { time: 35000, type: 'rainbow' },                   // 35秒：大サビレインボー
-        { time: 35000, type: 'torch',   value: false },     // ライト消灯
-        { time: 45000, type: 'color',   value: '#000000' }  // 45秒：暗転終了
-      ];
+      currentTimeline.sort((a, b) => a.sec - b.sec);
+      const formatted = currentTimeline.map(s => ({
+        time: s.sec * 1000,
+        type: s.type,
+        value: s.value
+      }));
 
-      socket.emit('admin-start-timeline', { timeline: timeline });
+      socket.emit('admin-start-timeline', { eventId: currentEventId, timeline: formatted });
 
-      // 管理画面のプログレスバーをアニメーション
       clearInterval(progressTimer);
-      const totalDuration = 45000;
+      const maxSec = currentTimeline[currentTimeline.length - 1].sec;
+      const totalDuration = maxSec * 1000;
       const startAt = Date.now();
       progressTimer = setInterval(() => {
         const elapsed = Date.now() - startAt;
         const pct = Math.min(100, (elapsed / totalDuration) * 100);
         document.getElementById('progressFill').style.width = pct + '%';
         const sec = Math.floor(elapsed / 1000);
-        document.getElementById('timelineTimerText').innerText = `再生中: ${sec}秒 / 45秒`;
+        document.getElementById('timelineTimerText').innerText = `再生中: ${sec}秒 / ${maxSec}秒`;
         if (elapsed >= totalDuration) {
           clearInterval(progressTimer);
           document.getElementById('timelineTimerText').innerText = '完了！';
         }
       }, 200);
+    }
+
+    // モーダル（設定画面）の操作
+    function openEditModal() {
+      const container = document.getElementById('stepContainer');
+      container.innerHTML = '';
+      currentTimeline.forEach(s => addStepRow(s.sec, s.type, s.value));
+      document.getElementById('editModal').style.display = 'flex';
+    }
+
+    function closeEditModal() { document.getElementById('editModal').style.display = 'none'; }
+
+    function addStepRow(sec, type, value) {
+      const container = document.getElementById('stepContainer');
+      const div = document.createElement('div');
+      div.className = 'step-row';
+      div.innerHTML = `
+        <span style="font-size:12px;">開始</span>
+        <input type="number" value="${sec}" min="0" max="600" style="width: 55px;" class="step-sec">
+        <span style="font-size:12px;">秒:</span>
+        <select class="step-type" onchange="onStepTypeChange(this)" style="flex:1;">
+          <option value="color" ${type==='color'?'selected':''}>🎨 画面色</option>
+          <option value="rainbow" ${type==='rainbow'?'selected':''}>🌈 レインボー</option>
+          <option value="torch-on" ${type==='torch'&&value===true?'selected':''}>💡 ライト点灯</option>
+          <option value="torch-off" ${type==='torch'&&value===false?'selected':''}>⬛ ライト消灯</option>
+        </select>
+        <select class="step-val" style="width: 90px; ${type!=='color'?'display:none;':''}">
+          <option value="#ff0055" ${value==='#ff0055'?'selected':''}>🔴 赤</option>
+          <option value="#0088ff" ${value==='#0088ff'?'selected':''}>🔵 青</option>
+          <option value="#ffd000" ${value==='#ffd000'?'selected':''}>🟡 黄</option>
+          <option value="#00cc44" ${value==='#00cc44'?'selected':''}>🟢 緑</option>
+          <option value="#9900ff" ${value==='#9900ff'?'selected':''}>🟣 紫</option>
+          <option value="#ff66cc" ${value==='#ff66cc'?'selected':''}>🌸 ピンク</option>
+          <option value="#ffffff" ${value==='#ffffff'?'selected':''}>⚪ 白</option>
+          <option value="#000000" ${value==='#000000'?'selected':''}>⬛ 暗転</option>
+        </select>
+        <button class="btn-del" onclick="this.parentElement.remove()">🗑️</button>
+      `;
+      container.appendChild(div);
+    }
+
+    function onStepTypeChange(sel) {
+      const valSel = sel.parentElement.querySelector('.step-val');
+      valSel.style.display = sel.value === 'color' ? 'block' : 'none';
+    }
+
+    function saveTimelineSettings() {
+      const rows = document.querySelectorAll('#stepContainer .step-row');
+      const newTimeline = [];
+      const colorNames = { '#ff0055':'赤', '#0088ff':'青', '#ffd000':'黄', '#00cc44':'緑', '#9900ff':'紫', '#ff66cc':'ピンク', '#ffffff':'白', '#000000':'暗転' };
+
+      rows.forEach(r => {
+        const sec = Number(r.querySelector('.step-sec').value) || 0;
+        const typeSel = r.querySelector('.step-type').value;
+        const valSel = r.querySelector('.step-val').value;
+
+        if (typeSel === 'color') {
+          newTimeline.push({ sec, type: 'color', value: valSel, label: colorNames[valSel] || '色' });
+        } else if (typeSel === 'rainbow') {
+          newTimeline.push({ sec, type: 'rainbow', value: 'rainbow', label: 'レインボー' });
+        } else if (typeSel === 'torch-on') {
+          newTimeline.push({ sec, type: 'torch', value: true, label: 'ライトON' });
+        } else if (typeSel === 'torch-off') {
+          newTimeline.push({ sec, type: 'torch', value: false, label: 'ライトOFF' });
+        }
+      });
+
+      newTimeline.sort((a, b) => a.sec - b.sec);
+      currentTimeline = newTimeline;
+      localStorage.setItem('my_timeline', JSON.stringify(currentTimeline));
+      updateTimelineSummary();
+      closeEditModal();
     }
 
     function stopAll() {
@@ -208,12 +362,12 @@
 
     function setColor(color) {
       const targetGroup = document.getElementById('targetGroup').value;
-      socket.emit('admin-color', { targetGroup: targetGroup, color: color });
+      socket.emit('admin-color', { eventId: currentEventId, targetGroup: targetGroup, color: color });
     }
 
     function sendMode(mode) {
       const targetGroup = document.getElementById('targetGroup').value;
-      socket.emit('admin-command', { mode: mode, targetGroup: targetGroup });
+      socket.emit('admin-command', { eventId: currentEventId, mode: mode, targetGroup: targetGroup });
     }
 
     function filterTab(tabName, btn) {
@@ -249,9 +403,7 @@
     function singleToggle(id) { socket.emit('single-command', { id: id, action: 'toggle' }); }
     function escapeHtml(str) { return str.replace(/[&<>'"]/g, t => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[t] || t)); }
 
-    const clientUrl = window.location.origin + '/client.html';
-    document.getElementById('qr-url').innerText = clientUrl;
-    new QRCode(document.getElementById("qrcode"), { text: clientUrl, width: 170, height: 170 });
+    initEvent();
   </script>
 </body>
 </html>
