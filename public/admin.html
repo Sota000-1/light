@@ -132,7 +132,7 @@
       <button style="background: #ff007f; color: white;" onclick="sendMode('class-wave')">🌊 クラス対抗ウェーブ</button>
       <button style="background: #8338ec; color: white;" onclick="sendMode('random')">🎲 ランダムきらめき</button>
       
-      <!-- 👇 ここからストロボ部分（スライダー付きに変更） 👇 -->
+      <!-- ストロボ速度調整コントロール -->
       <div style="background: #2a2b2c; padding: 10px; border-radius: 8px; margin: 8px 0; border: 1px solid #444;">
         <button style="background: #fb5607; color: white; margin: 0 0 8px 0;" onclick="sendStrobe()">⚡ ストロボ点滅</button>
         <div style="display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: #ccc;">
@@ -142,7 +142,6 @@
                  style="width: 55%; cursor: pointer;">
         </div>
       </div>
-      <!-- 👆 ここまで 👆 -->
 
       <div style="display: flex; gap: 8px;">
         <button style="background: #ffb703; color: black;" onclick="sendMode('all-on')">💡 ライト点灯</button>
@@ -380,6 +379,19 @@
     function sendMode(mode) {
       const targetGroup = document.getElementById('targetGroup').value;
       socket.emit('admin-command', { eventId: currentEventId, mode: mode, targetGroup: targetGroup });
+    }
+
+    // ストロボ送信
+    function sendStrobe() {
+      const targetGroup = document.getElementById('targetGroup').value;
+      const speedSec = parseFloat(document.getElementById('strobeSpeed').value);
+      const intervalMs = Math.round(speedSec * 1000);
+      socket.emit('admin-command', { 
+        eventId: currentEventId, 
+        mode: 'strobe', 
+        targetGroup: targetGroup,
+        interval: intervalMs
+      });
     }
 
     function filterTab(tabName, btn) {
