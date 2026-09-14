@@ -22,6 +22,7 @@ function stopCurrentMode() {
   for (const id in clients) {
     clients[id].isOn = false;
   }
+  io.emit('stop-timeline');
   io.emit('torch', { state: false });
   broadcastClientList();
 }
@@ -50,6 +51,7 @@ io.on('connection', (socket) => {
     socket.emit('client-list-update', Object.values(clients));
   });
 
+  // 参加
   socket.on('join-client', (data) => {
     socket.isClient = true;
     socket.group = data.group || '1組';
@@ -64,7 +66,23 @@ io.on('connection', (socket) => {
     broadcastClientList();
   });
 
-  // 🎨 ペンライトの色変更指示
+  // 🔄 クラス選び直し（ログアウト）
+  socket.on('leave-client', () => {
+    if (socket.isClient && clients[socket.id]) {
+      socket.leave(clients[socket.id].group);
+      delete clients[socket.id];
+      socket.isClient = false;
+      broadcastClientList();
+    }
+  });
+
+  // 🎵 タイムライン演出プログラムの送信（オフライン継続型）
+  socket.on('admin-start-timeline', (data) => {
+    stopCurrentMode();
+    // 全スマホへシナリオを一斉配布
+    io.emit('start-timeline', { timeline: data.timeline, startTime: Date.now() + 500 });
+  });
+
   socket.on('admin-color', (data) => {
     const targetRoom = data.targetGroup === '全クラス' ? io : io.to(data.targetGroup);
     if (data.color === 'rainbow') {
