@@ -75,6 +75,7 @@
     let isJoined = false;
     let infoTimer = null;
     let timelineTimeouts = [];
+    let strobeIntervalTimer = null; // ストロボ用タイマー
 
     // URLからイベントIDを取得（例: ?event=gym なら gym）
     const urlParams = new URLSearchParams(window.location.search);
@@ -141,9 +142,18 @@
       }
     }
 
+    // 演出系タイマーをクリア
+    function clearCurrentEffects() {
+      if (strobeIntervalTimer) {
+        clearInterval(strobeIntervalTimer);
+        strobeIntervalTimer = null;
+      }
+    }
+
     function leaveClass(e) {
       if (e) e.stopPropagation();
       clearTimeline();
+      clearCurrentEffects();
       socket.emit('leave-client');
       isJoined = false;
       document.body.style.backgroundColor = '#000';
@@ -183,6 +193,7 @@
 
     socket.on('set-color', (data) => {
       clearTimeline();
+      clearCurrentEffects();
       applyColor(data);
     });
 
@@ -197,6 +208,7 @@
 
     socket.on('start-timeline', (data) => {
       clearTimeline();
+      clearCurrentEffects();
       const delay = Math.max(0, data.startTime - Date.now());
       data.timeline.forEach(step => {
         const timer = setTimeout(() => {
@@ -221,8 +233,32 @@
       }
     }
 
-    socket.on('torch', (data) => setTorch(data.state));
+    // ストロボ命令を受信
+    socket.on('strobe', (data) => {
+      clearTimeline();
+      clearCurrentEffects();
+
+      const interval = data.interval || 100;
+      let isOn = false;
+
+      strobeIntervalTimer = setInterval(() => {
+        isOn = !isOn;
+        setTorch(isOn);
+      }, interval);
+    });
+
+    // 演出停止通知を受信
+    socket.on('stop-effects', () => {
+      clearCurrentEffects();
+    });
+
+    socket.on('torch', (data) => {
+      clearCurrentEffects();
+      setTorch(data.state);
+    });
+
     socket.on('pulse', (data) => {
+      clearCurrentEffects();
       setTorch(true);
       setTimeout(() => setTorch(false), data.duration || 200);
     });
