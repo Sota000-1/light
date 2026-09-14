@@ -3,51 +3,59 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>学校祭ライト演出 司令塔</title>
+  <title>学校祭ペンライト 司令塔</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 20px; background: #18191a; color: #fff; margin: 0; }
+    body { font-family: sans-serif; padding: 20px; background: #121314; color: #fff; margin: 0; }
     .container { display: flex; flex-wrap: wrap; gap: 20px; max-width: 1100px; margin: 0 auto; }
-    .panel { background: #242526; padding: 20px; border-radius: 12px; flex: 1; min-width: 320px; }
-    .panel-wide { width: 100%; background: #242526; padding: 20px; border-radius: 12px; margin-top: 20px; }
-    h2 { margin-top: 0; font-size: 20px; border-bottom: 2px solid #3a3b3c; padding-bottom: 8px; }
-    .counts-box { display: flex; justify-content: space-around; background: #3a3b3c; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
-    .count-item strong { display: block; font-size: 24px; color: #00bcd4; }
-    button { display: block; width: 100%; margin: 8px 0; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; }
+    .panel { background: #1e1f20; padding: 20px; border-radius: 12px; flex: 1; min-width: 320px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+    .panel-wide { width: 100%; background: #1e1f20; padding: 20px; border-radius: 12px; margin-top: 20px; }
+    h2 { margin-top: 0; font-size: 18px; border-bottom: 2px solid #333; padding-bottom: 8px; }
+    .counts-box { display: flex; justify-content: space-around; background: #2a2b2c; border-radius: 8px; padding: 10px; margin-bottom: 15px; }
+    .count-item strong { display: block; font-size: 22px; color: #00bcd4; }
+    button { display: block; width: 100%; margin: 8px 0; padding: 12px; font-size: 15px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; }
+    .target-select { width: 100%; padding: 10px; font-size: 16px; border-radius: 6px; margin-bottom: 10px; background: #2a2b2c; color: white; border: none; }
+    #qrcode { display: flex; justify-content: center; margin: 15px 0; background: white; padding: 15px; border-radius: 8px; }
+
+    /* カラーパレット */
+    .color-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
+    .color-btn { margin: 0; padding: 14px 5px; font-size: 13px; font-weight: bold; border-radius: 6px; border: none; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+    .btn-red { background: #ff0055; }
+    .btn-blue { background: #0088ff; }
+    .btn-yellow { background: #ffd000; color: #000; text-shadow: none; }
+    .btn-green { background: #00cc44; }
+    .btn-purple { background: #9900ff; }
+    .btn-pink { background: #ff66cc; }
+    .btn-white { background: #ffffff; color: #000; text-shadow: none; }
+    .btn-black { background: #222222; border: 1px solid #555; }
+    .btn-rainbow { background: linear-gradient(45deg, #ff0000, #ff7700, #ffdd00, #00ff00, #0099ff, #cc00ff); color: white; grid-column: 1 / -1; padding: 12px; }
+
+    /* 演出ボタン */
     .btn-wave { background: #ff007f; color: white; }
     .btn-random { background: #8338ec; color: white; }
     .btn-strobe { background: #fb5607; color: white; }
-    .btn-on { background: #ffb703; color: black; }
-    .btn-off { background: #4e4f50; color: white; }
-    .target-select { width: 100%; padding: 10px; font-size: 16px; border-radius: 6px; margin-bottom: 10px; background: #3a3b3c; color: white; border: none; }
-    .slider-box { margin: 15px 0; padding: 10px; background: #3a3b3c; border-radius: 8px; }
-    #qrcode { display: flex; justify-content: center; margin: 15px 0; background: white; padding: 15px; border-radius: 8px; }
+    .btn-torch-on { background: #ffb703; color: black; }
+    .btn-torch-off { background: #4e4f50; color: white; }
 
-    /* タブバー */
-    .tab-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-    .tab-btn { width: auto; flex: 1; min-width: 70px; padding: 10px 5px; font-size: 14px; background: #3a3b3c; color: #aaa; margin: 0; }
+    /* タブ & 端末一覧 */
+    .tab-bar { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+    .tab-btn { width: auto; flex: 1; min-width: 70px; padding: 10px 5px; font-size: 14px; background: #2a2b2c; color: #aaa; margin: 0; }
     .tab-btn.active { background: #00bcd4; color: white; }
-
-    /* 検索バー */
-    .search-box { width: 100%; padding: 12px 15px; font-size: 15px; border-radius: 8px; border: 1px solid #4e4f50; background: #18191a; color: white; margin-bottom: 12px; box-sizing: border-box; }
-
-    /* 端末グリッド一覧 */
-    .device-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; max-height: 380px; overflow-y: auto; padding-right: 5px; }
-    .device-card { background: #3a3b3c; border-radius: 8px; padding: 10px; text-align: center; border-left: 4px solid #00bcd4; }
-    .device-card.on { border-left-color: #ffb703; background: #47402d; }
-    .device-name { font-weight: bold; font-size: 15px; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .device-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; max-height: 400px; overflow-y: auto; }
+    .device-card { background: #2a2b2c; border-radius: 8px; padding: 12px; text-align: center; border-left: 5px solid #00bcd4; }
+    .device-card.on { border-left-color: #ffb703; background: #3d3520; }
+    .device-name { font-weight: bold; font-size: 15px; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .device-actions { display: flex; gap: 6px; }
     .device-actions button { margin: 0; padding: 8px 4px; font-size: 13px; }
     .btn-single-pulse { background: #8338ec; color: white; }
     .btn-single-toggle { background: #ffb703; color: black; }
-    .limit-notice { font-size: 12px; color: #aaa; margin-top: 8px; text-align: right; }
   </style>
 </head>
 <body>
   <div style="max-width: 1100px; margin: 0 auto;">
     <div class="container">
-      <!-- 左側：QRコードと参加人数 -->
+      <!-- 左：QRコード＆人数 -->
       <div class="panel">
         <h2>📱 スマホ参加用QRコード</h2>
         <div id="qrcode"></div>
@@ -63,11 +71,11 @@
         </div>
       </div>
 
-      <!-- 右側：演出コントローラー -->
+      <!-- 右：操作パネル -->
       <div class="panel">
-        <h2>🎮 全体・クラス演出</h2>
+        <h2>🎮 操作パネル</h2>
         
-        <label>操作する対象:</label>
+        <label>操作対象:</label>
         <select id="targetGroup" class="target-select">
           <option value="全クラス">🌟 全クラス一斉</option>
           <option value="1組">🏫 1組のみ</option>
@@ -76,61 +84,59 @@
           <option value="4組">🏫 4組のみ</option>
         </select>
 
-        <div class="slider-box">
-          <label>🎛️ 点滅・テンポ速度: <strong id="speed-val" style="color: #00bcd4;">300ms</strong></label>
-          <input type="range" id="speedSlider" min="80" max="800" step="20" value="300" style="width: 100%; margin-top: 8px;">
+        <h3>🎨 画面カラー（ペンライト）</h3>
+        <div class="color-grid">
+          <button class="color-btn btn-red" onclick="setColor('#ff0055')">🔴 赤</button>
+          <button class="color-btn btn-blue" onclick="setColor('#0088ff')">🔵 青</button>
+          <button class="color-btn btn-yellow" onclick="setColor('#ffd000')">🟡 黄</button>
+          <button class="color-btn btn-green" onclick="setColor('#00cc44')">🟢 緑</button>
+          <button class="color-btn btn-purple" onclick="setColor('#9900ff')">🟣 紫</button>
+          <button class="color-btn btn-pink" onclick="setColor('#ff66cc')">🌸 ピンク</button>
+          <button class="color-btn btn-white" onclick="setColor('#ffffff')">⚪ 白</button>
+          <button class="color-btn btn-black" onclick="setColor('#000000')">⬛ 暗転</button>
+          <button class="color-btn btn-rainbow" onclick="setColor('rainbow')">🌈 幻想的レインボー演出</button>
         </div>
 
+        <h3 style="margin-top: 15px;">🔦 背面ライト＆点滅演出</h3>
         <button class="btn-wave" onclick="sendMode('class-wave')">🌊 クラス対抗ウェーブ</button>
         <button class="btn-random" onclick="sendMode('random')">🎲 ランダムきらめき</button>
-        <button class="btn-strobe" onclick="sendMode('strobe')">⚡ ストロボ（激しい点滅）</button>
-        <hr style="border-color: #3a3b3c; margin: 15px 0;">
-        <button class="btn-on" onclick="sendMode('all-on')">💡 点灯</button>
-        <button class="btn-off" onclick="sendMode('all-off')">⬛ 全員 消灯 (ストップ)</button>
+        <button class="btn-strobe" onclick="sendMode('strobe')">⚡ ストロボ（高速点滅）</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-torch-on" onclick="sendMode('all-on')">💡 ライト点灯</button>
+          <button class="btn-torch-off" onclick="sendMode('all-off')">⬛ ライト消灯</button>
+        </div>
       </div>
     </div>
 
-    <!-- ★軽量化＆検索つき：個別操作パネル -->
+    <!-- 下：個別操作 -->
     <div class="panel-wide">
       <h2>👤 個人のスマホ操作リスト</h2>
-      
-      <!-- タブ切り替え（初期値は1組にして負荷軽減） -->
       <div class="tab-bar">
-        <button class="tab-btn active" onclick="filterTab('1組', this)">1組 (<span id="tab-cnt-1">0</span>)</button>
+        <button class="tab-btn active" onclick="filterTab('全体', this)">全体 (<span id="tab-cnt-all">0</span>)</button>
+        <button class="tab-btn" onclick="filterTab('1組', this)">1組 (<span id="tab-cnt-1">0</span>)</button>
         <button class="tab-btn" onclick="filterTab('2組', this)">2組 (<span id="tab-cnt-2">0</span>)</button>
         <button class="tab-btn" onclick="filterTab('3組', this)">3組 (<span id="tab-cnt-3">0</span>)</button>
         <button class="tab-btn" onclick="filterTab('4組', this)">4組 (<span id="tab-cnt-4">0</span>)</button>
-        <button class="tab-btn" onclick="filterTab('全体', this)">全体 (<span id="tab-cnt-all">0</span>)</button>
       </div>
-
-      <!-- 検索バー -->
-      <input type="text" id="searchInput" class="search-box" placeholder="🔍 名前や番号で検索（例：たろう、さくら、#10 など）" oninput="renderDevices()">
-
-      <!-- スマホカード一覧 -->
-      <div id="deviceList" class="device-grid"></div>
-      <div id="limitNotice" class="limit-notice"></div>
+      <div id="deviceList" class="device-grid">
+        <p style="color: #888; grid-column: 1/-1; text-align: center;">スマホが接続されるとここに並びます</p>
+      </div>
     </div>
   </div>
 
   <script>
     const socket = io();
     let allDevices = [];
-    let currentTab = '1組'; // ★初期表示を1組にして800人描画の負荷を回避
-    const MAX_DISPLAY = 60; // 1画面の最大表示数（PCを軽く保つリミット）
+    let currentTab = '全体';
 
     socket.on('status-update', (counts) => {
       if (!counts) return;
-      document.getElementById('cnt-all').innerText = counts['全クラス'] || 0;
-      document.getElementById('cnt-1').innerText = counts['1組'] || 0;
-      document.getElementById('cnt-2').innerText = counts['2組'] || 0;
-      document.getElementById('cnt-3').innerText = counts['3組'] || 0;
-      document.getElementById('cnt-4').innerText = counts['4組'] || 0;
-
-      document.getElementById('tab-cnt-all').innerText = counts['全クラス'] || 0;
-      document.getElementById('tab-cnt-1').innerText = counts['1組'] || 0;
-      document.getElementById('tab-cnt-2').innerText = counts['2組'] || 0;
-      document.getElementById('tab-cnt-3').innerText = counts['3組'] || 0;
-      document.getElementById('tab-cnt-4').innerText = counts['4組'] || 0;
+      ['all', '1', '2', '3', '4'].forEach((k, i) => {
+        const name = i === 0 ? '全クラス' : `${i}組`;
+        const val = counts[name] || 0;
+        document.getElementById(`cnt-${k}`).innerText = val;
+        document.getElementById(`tab-cnt-${k}`).innerText = val;
+      });
     });
 
     socket.on('client-list-update', (devices) => {
@@ -138,9 +144,17 @@
       renderDevices();
     });
 
-    socket.on('connect', () => {
-      socket.emit('request-status');
-    });
+    socket.on('connect', () => socket.emit('request-status'));
+
+    function setColor(color) {
+      const targetGroup = document.getElementById('targetGroup').value;
+      socket.emit('admin-color', { targetGroup: targetGroup, color: color });
+    }
+
+    function sendMode(mode) {
+      const targetGroup = document.getElementById('targetGroup').value;
+      socket.emit('admin-command', { mode: mode, targetGroup: targetGroup });
+    }
 
     function filterTab(tabName, btn) {
       currentTab = tabName;
@@ -149,34 +163,15 @@
       renderDevices();
     }
 
-    // 描画処理（検索＆軽量化フィルター付き）
     function renderDevices() {
       const listEl = document.getElementById('deviceList');
-      const noticeEl = document.getElementById('limitNotice');
-      const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
       listEl.innerHTML = '';
-
-      // タブで絞り込み
-      let filtered = allDevices.filter(d => currentTab === '全体' || d.group === currentTab);
-
-      // 検索キーワードで絞り込み
-      if (keyword !== '') {
-        filtered = filtered.filter(d => 
-          (d.name && d.name.toLowerCase().includes(keyword)) ||
-          (d.group && d.group.toLowerCase().includes(keyword))
-        );
-      }
-
+      const filtered = allDevices.filter(d => currentTab === '全体' || d.group === currentTab);
       if (filtered.length === 0) {
-        listEl.innerHTML = '<p style="color: #888; grid-column: 1/-1; text-align: center; padding: 20px;">該当するスマホが見つかりません</p>';
-        noticeEl.innerText = '';
+        listEl.innerHTML = '<p style="color: #888; grid-column: 1/-1; text-align: center;">このグループのスマホはありません</p>';
         return;
       }
-
-      // 表示件数を最大60件に制限（検索すれば必ずヒットします）
-      const displayList = filtered.slice(0, MAX_DISPLAY);
-
-      displayList.forEach(device => {
+      filtered.forEach(device => {
         const card = document.createElement('div');
         card.className = `device-card ${device.isOn ? 'on' : ''}`;
         card.innerHTML = `
@@ -188,45 +183,15 @@
         `;
         listEl.appendChild(card);
       });
-
-      if (filtered.length > MAX_DISPLAY) {
-        noticeEl.innerText = `※多いため先頭${MAX_DISPLAY}件を表示中（全${filtered.length}件）。上の検索バーで絞り込めます！`;
-      } else {
-        noticeEl.innerText = `表示中: ${filtered.length}台`;
-      }
     }
 
-    function singlePulse(id) {
-      socket.emit('single-command', { id: id, action: 'pulse' });
-    }
-
-    function singleToggle(id) {
-      socket.emit('single-command', { id: id, action: 'toggle' });
-    }
-
-    function escapeHtml(str) {
-      return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
-    }
+    function singlePulse(id) { socket.emit('single-command', { id: id, action: 'pulse' }); }
+    function singleToggle(id) { socket.emit('single-command', { id: id, action: 'toggle' }); }
+    function escapeHtml(str) { return str.replace(/[&<>'"]/g, t => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[t] || t)); }
 
     const clientUrl = window.location.origin + '/client.html';
     document.getElementById('qr-url').innerText = clientUrl;
-    new QRCode(document.getElementById("qrcode"), {
-      text: clientUrl,
-      width: 180,
-      height: 180
-    });
-
-    const slider = document.getElementById('speedSlider');
-    slider.addEventListener('input', (e) => {
-      const speed = e.target.value;
-      document.getElementById('speed-val').innerText = speed + 'ms';
-      socket.emit('change-speed', { speed: speed });
-    });
-
-    function sendMode(mode) {
-      const targetGroup = document.getElementById('targetGroup').value;
-      socket.emit('admin-command', { mode: mode, targetGroup: targetGroup });
-    }
+    new QRCode(document.getElementById("qrcode"), { text: clientUrl, width: 170, height: 170 });
   </script>
 </body>
 </html>
