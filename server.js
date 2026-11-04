@@ -108,7 +108,7 @@ io.on('connection', (socket) => {
       if (data.channel === 'screen') Object.assign(cue, { type: data.mode === 'rainbow' ? 'rainbow' : 'color', value: data.color });
       else if (['on', 'off', 'flash'].includes(data.mode)) Object.assign(cue, { type: 'torch', value: data.mode !== 'off' });
       else {
-        if (!Number.isFinite(data.interval) || data.interval < 200 || data.interval > 2000) throw new Error('点滅間隔は0.2〜2秒で指定してください');
+        if (!Number.isFinite(data.interval) || data.interval < 50 || data.interval > 2000) throw new Error('点滅間隔は0.05〜2秒で指定してください');
         Object.assign(cue, { type: 'pulse', interval: data.interval });
         if (data.mode === 'ramp') {
           if (!Number.isFinite(data.rampDuration) || data.rampDuration < 0.1 || data.rampDuration > 120 || !Number.isFinite(data.intervalEnd)) throw new Error('間隔と変化時間を確認してください');

@@ -34,7 +34,7 @@ test('invalid or excessive programs are rejected before playback', () => {
   assert.throws(() => Show.normalize([{ start: 0, duration: -1, type: 'torch', value: true, group: 'all' }], 20));
 });
 test('accelerating and decelerating pulse phase matches independent numerical integration', () => {
-  for (const [a, b] of [[1000, 200], [200, 1500], [500, 500]]) {
+  for (const [a, b] of [[1000, 200], [200, 1500], [500, 500], [1000, 50], [50, 1000]]) {
     const cue = { interval: a, intervalEnd: b, rampDuration: 4, duration: 10 };
     for (const end of [0, 0.4, 1.7, 4, 6]) {
       const steps = 20000, dt = end / steps;
@@ -59,4 +59,14 @@ test('ramped pulses survive serialization and seeking with continuous terminal s
   assert.throws(() => Show.normalize([{ ...c[0], intervalEnd: NaN }], 12));
   assert.throws(() => Show.normalize([{ ...c[0], intervalEnd: 20 }], 12));
   assert.throws(() => Show.normalize([{ ...c[0], rampDuration: -1 }], 12));
+});
+test('50ms fixed intervals and ramp endpoints are preserved without a 200ms clamp', () => {
+  const fixed = Show.normalize([{ start: 0, duration: 10, type: 'pulse', group: 'all', interval: 50 }], 10);
+  assert.equal(fixed[0].interval, 50);
+  assert.equal(Show.stateAt(fixed, 0.049, '1組').torch, true);
+  assert.equal(Show.stateAt(fixed, 0.05, '1組').torch, false);
+  assert.equal(Show.stateAt(fixed, 0.1, '1組').torch, true);
+  const ramp = Show.normalize([{ ...fixed[0], interval: 1000, intervalEnd: 50, rampDuration: 2 }], 10);
+  assert.equal(ramp[0].intervalEnd, 50);
+  assert.ok(Math.abs(Show.pulsePhase(ramp[0], 4) - Show.pulsePhase(ramp[0], 3) - 20) < 1e-9);
 });

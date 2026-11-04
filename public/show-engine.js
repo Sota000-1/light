@@ -14,19 +14,19 @@
       if (c.type === 'color' && !/^#[0-9a-f]{6}$/i.test(c.value)) throw new Error('色が不正です');
       if (c.type === 'torch' && typeof c.value !== 'boolean') throw new Error('ライト設定が不正です');
       if (c.group !== 'all' && !groups.includes(c.group)) throw new Error('対象クラスが不正です');
-      if (c.intervalEnd !== undefined && (!Number.isFinite(c.intervalEnd) || c.intervalEnd < 200 || c.intervalEnd > 2000)) throw new Error('終了間隔は0.2〜2秒で指定してください');
+      if (c.intervalEnd !== undefined && (!Number.isFinite(c.intervalEnd) || c.intervalEnd < 50 || c.intervalEnd > 2000)) throw new Error('終了間隔は0.05〜2秒で指定してください');
       if (c.rampDuration !== undefined && (!Number.isFinite(c.rampDuration) || c.rampDuration <= 0 || c.rampDuration > 7200)) throw new Error('変化時間が不正です');
       const ramp = c.type === 'pulse' && c.intervalEnd !== undefined ? { intervalEnd: c.intervalEnd, rampDuration: Math.min(c.rampDuration || c.duration, duration - c.start) } : {};
       return { ...ramp, id: String(c.id || i).slice(0, 100), ...(typeof c.laneId === 'string' ? { laneId: c.laneId.slice(0, 100) } : {}), start: c.start, duration: Math.min(c.duration, duration - c.start), type: c.type,
         value: c.type === 'torch' ? c.value : c.type === 'color' ? c.value : null,
-        group: c.group, label: String(c.label || '').slice(0, 100), interval: clamp(c.interval || 500, 200, 2000) };
+        group: c.group, label: String(c.label || '').slice(0, 100), interval: clamp(c.interval || 500, 50, 2000) };
     }).sort((a, b) => a.start - b.start);
   }
   // Integrate toggle frequency, rather than dividing elapsed time by a changing interval.
   // This keeps the phase continuous and reproducible after seeking or reconnecting.
   function pulsePhase(cue, elapsed) {
-    const a = clamp(cue.interval || 500, 200, 2000) / 1000;
-    const b = clamp(cue.intervalEnd === undefined ? cue.interval || 500 : cue.intervalEnd, 200, 2000) / 1000;
+    const a = clamp(cue.interval || 500, 50, 2000) / 1000;
+    const b = clamp(cue.intervalEnd === undefined ? cue.interval || 500 : cue.intervalEnd, 50, 2000) / 1000;
     const duration = cue.rampDuration || cue.duration;
     const t = Math.max(0, elapsed);
     if (Math.abs(b - a) < 1e-9) return t / a;
