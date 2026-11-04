@@ -40,7 +40,7 @@ function persist() {
   });
 }
 function snapshot() { if (current) { undo.push(historyState()); if (undo.length > 80) undo.shift(); redo = []; } }
-function changed() { Object.assign(current, LightLanes.normalizeSong(current)); current.cues.sort((a, b) => a.start - b.start); persist(); renderTimeline(); renderInspector(); renderLibrary(); }
+function changed() { current.cues.forEach(c => { if (c.type === 'pulse' && c.intervalEnd !== undefined) c.rampDuration = c.duration; }); Object.assign(current, LightLanes.normalizeSong(current)); current.cues.sort((a, b) => a.start - b.start); persist(); renderTimeline(); renderInspector(); renderLibrary(); }
 function editable() {
   if (!current) { say('先に曲を追加してください。', true); return false; }
   if (ownLive || busy) { say('演出を編集するには本番送信を停止してください。', true); return false; }
@@ -321,6 +321,9 @@ function renderInspector() {
   $('cueLane').value = c.laneId;
   $('cueGroup').value = c.group; $('cueColor').value = c.type === 'color' ? c.value : '#0088ff';
   $('cueTorch').value = String(c.value); $('cueInterval').value = c.interval / 1000;
+  $('cueRamp').checked = c.type === 'pulse' && c.intervalEnd !== undefined;
+  $('cueIntervalEnd').value = (c.intervalEnd || 200) / 1000;
+  $('rampField').hidden = c.type !== 'pulse'; $('intervalEndField').hidden = c.type !== 'pulse' || !$('cueRamp').checked;
   $('colorField').hidden = c.type !== 'color'; $('torchField').hidden = c.type !== 'torch'; $('intervalField').hidden = c.type !== 'pulse';
 }
 function addCue(type) {
@@ -381,7 +384,8 @@ async function pausePlayback() {
   if (busy) return;
   if (!ownLive) { position = audio.currentTime || position; localStop(); return; }
   busy = true;
-  try { const result = await control('pause'); localStop(); transport = result.show; ownLive = true; position = result.show.position; audio.currentTime = position; }
+  const token = liveRequest;
+  try { const result = await control('pause'); if (token !== liveRequest) return; localStop(); transport = result.show; ownLive = true; position = result.show.position; audio.currentTime = position; }
   catch (e) { say(e.message, true); }
   finally { finishControl(); }
 }
@@ -391,7 +395,8 @@ async function seekTo(t) {
   t = engine.clamp(t, 0, current.duration);
   if (ownLive) {
     busy = true;
-    try { const result = await control(playing ? 'play' : 'pause', t); audio.pause(); audio.currentTime = t; transport = result.show; position = t; }
+    const token = liveRequest;
+    try { const result = await control(playing ? 'play' : 'pause', t); if (token !== liveRequest) return; audio.pause(); audio.currentTime = t; transport = result.show; position = t; }
     catch (e) { say(e.message, true); }
     finally { finishControl(); }
   } else { position = t; if (current.blob) audio.currentTime = t; }
@@ -438,12 +443,16 @@ function frame() {
   $('liveStatus').textContent = remoteShow ? `会場：${remoteShow.title} · ${remoteShow.playing ? '送信中' : '一時停止中'}` : '参加者への送信は停止中';
   const next = current?.cues.find(c => c.start > position);
   $('nextCue').textContent = next ? `次の演出：${time(next.start)} ${next.label}` : '次の演出：—';
+  realtimePanel?.render();
   requestAnimationFrame(frame);
 }
+let realtimePanel;
 function mode(mode) {
   document.body.classList.toggle('live-mode', mode === 'live');
-  $('studio').hidden = mode === 'join'; $('participants').hidden = mode !== 'join';
-  ['edit', 'live', 'join'].forEach(m => $(m + 'Tab').classList.toggle('active', mode === m));
+  $('studio').hidden = mode === 'join' || mode === 'realtime'; $('participants').hidden = mode !== 'join'; $('realtime').hidden = mode !== 'realtime';
+  realtimePanel?.setActive(mode === 'realtime');
+  if (mode === 'realtime') window.scrollTo(0, 0);
+  ['edit', 'live', 'realtime', 'join'].forEach(m => $(m + 'Tab').classList.toggle('active', mode === m));
 }
 function joinEvent() {
   if (!socket.connected) return;
@@ -489,6 +498,17 @@ async function restore(file) {
 }
 function setup() {
   setupLanes();
+  realtimePanel = LightRealtime.mount($('realtime'), {
+    send: payload => {
+      localStop(); ownLive = false; liveRequest++; pendingSeek = null;
+      if (!socket.connected) return Promise.reject(new Error('サーバー接続を確認してください'));
+      return new Promise((resolve, reject) => socket.timeout(4000).emit('manual-command', { ...payload, eventId }, (error, result) => {
+        if (error || !result?.ok) reject(new Error(result?.error || '操作の送信を確認できませんでした')); else resolve(result);
+      }));
+    }, stop: emergency, notify: say,
+    getState: () => ({ show: remoteShow, now: Date.now() + clockOffset, connected: socket.connected })
+  });
+  $('cueRamp').onchange = () => { $('intervalEndField').hidden = !$('cueRamp').checked; };
   engine.groups.forEach(group => {
     const phone = element('div', undefined, 'phone'); const torch = element('span', '', 'torch');
     phone.append(torch, element('span', group, 'phone-label')); $('phones').append(phone); phoneEls.push({ phone, torch, group });
@@ -508,6 +528,8 @@ function setup() {
     const next = { ...c, label: $('cueLabel').value, start: Number($('cueStart').value), duration: Number($('cueDuration').value),
       group: $('cueGroup').value, value: c.type === 'color' ? $('cueColor').value : c.type === 'torch' ? $('cueTorch').value === 'true' : null,
       interval: Number($('cueInterval').value) * 1000 };
+    delete next.intervalEnd; delete next.rampDuration;
+    if (c.type === 'pulse' && $('cueRamp').checked) { next.intervalEnd = Number($('cueIntervalEnd').value) * 1000; next.rampDuration = next.duration; }
     if (next.start + next.duration > current.duration + 0.001) return say('演出が曲の終わりを超えています。', true);
     try {
       engine.normalize([next], current.duration);
@@ -534,7 +556,7 @@ function setup() {
   audio.onerror = () => { if (playing || ownLive) { localStop(); if (ownLive) control('stop').catch(() => {}); ownLive = false; say('音源の再生に失敗したため送信を停止しました。', true); } };
   $('renameSong').onclick = () => { if (!editable()) return; const name = prompt('曲名', current.title); if (name?.trim()) { current.title = name.trim().slice(0, 150); persist(); $('songTitle').textContent = current.title; renderLibrary(); } };
   $('deleteSong').onclick = async () => { if (!editable() || !confirm(`「${current.title}」の曲と演出を削除しますか？`)) return; try { await storeRecord(current, true); songs = songs.filter(s => s.id !== current.id); selectSong(songs[0]?.id); } catch { say('削除できませんでした。', true); } };
-  ['edit', 'live', 'join'].forEach(m => $(m + 'Tab').onclick = () => mode(m));
+  ['edit', 'live', 'realtime', 'join'].forEach(m => $(m + 'Tab').onclick = () => mode(m));
   $('eventSelect').onchange = async () => { if (ownLive) { await emergency(); } localStop(); eventId = $('eventSelect').value; remoteShow = null; joinEvent(); };
   $('newEvent').onclick = () => { const name = prompt('新しい会場名'); if (!name?.trim()) return; const opt = new Option(name.trim(), 'ev_' + uid()); $('eventSelect').add(opt); saveEvents(); };
   function saveEvents() { try { localStorage.setItem('fes-light-events', JSON.stringify(Array.from($('eventSelect').options).map(o => ({ id: o.value, name: o.textContent })))); } catch {} }
@@ -565,7 +587,7 @@ socket.on('disconnect', () => { $('connection').textContent = '接続が切れ�
 socket.on('show-state', data => {
   if (data.eventId !== eventId) return;
   remoteShow = data.show;
-  if (ownLive && (!data.show || data.show.owner !== socket.id)) { localStop(); ownLive = false; }
+  if (ownLive && (!data.show || data.show.owner !== socket.id || data.show.songId !== current?.id)) { localStop(); ownLive = false; }
 });
 socket.on('status-update', counts => {
   $('participantsCount').textContent = counts['全クラス'] || 0;
