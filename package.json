@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test test/*.test.js",
-    "test:e2e": "node test/browser.cjs"
+    "test:e2e": "node test/browser.cjs && node test/lanes.cjs"
   },
   "keywords": [],
   "author": "",

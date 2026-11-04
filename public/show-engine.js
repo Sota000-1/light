@@ -14,7 +14,7 @@
       if (c.type === 'color' && !/^#[0-9a-f]{6}$/i.test(c.value)) throw new Error('色が不正です');
       if (c.type === 'torch' && typeof c.value !== 'boolean') throw new Error('ライト設定が不正です');
       if (c.group !== 'all' && !groups.includes(c.group)) throw new Error('対象クラスが不正です');
-      return { id: String(c.id || i).slice(0, 100), start: c.start, duration: Math.min(c.duration, duration - c.start), type: c.type,
+      return { id: String(c.id || i).slice(0, 100), ...(typeof c.laneId === 'string' ? { laneId: c.laneId.slice(0, 100) } : {}), start: c.start, duration: Math.min(c.duration, duration - c.start), type: c.type,
         value: c.type === 'torch' ? c.value : c.type === 'color' ? c.value : null,
         group: c.group, label: String(c.label || '').slice(0, 100), interval: clamp(c.interval || 500, 200, 2000) };
     }).sort((a, b) => a.start - b.start);

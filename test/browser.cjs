@@ -31,7 +31,7 @@ function wave(seconds = 12) {
   assert.equal(await page.locator('.phone').first().evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(0, 136, 255)');
   console.log('PASS: multi-song import, waveform, class-specific cues and seek reconstruction');
   // Actual pointer drag moves the selected torch cue, then undo restores it.
-  const clip = page.locator('.torch-clip'); const box = await clip.boundingBox();
+  const clip = page.locator('.torch-clip'); await clip.scrollIntoViewIfNeeded(); const box = await clip.boundingBox();
   await page.mouse.move(box.x + 15, box.y + 20); await page.mouse.down(); await page.mouse.move(box.x + 63, box.y + 20, { steps: 5 }); await page.mouse.up();
   assert.ok(Number(await page.locator('#cueStart').inputValue()) >= 3.9);
   await page.locator('#undo').click(); assert.equal(await page.locator('#cueStart').inputValue(), '2.00');
@@ -73,7 +73,7 @@ function wave(seconds = 12) {
   await page.evaluate(() => { const seek = document.getElementById('seek'); seek.value = 5; seek.dispatchEvent(new Event('change')); });
   await fs.mkdir('test-results', { recursive: true }); await page.screenshot({ path: 'test-results/studio-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.locator('#screenTrack').scrollIntoViewIfNeeded();
+  await page.locator('.effect-track[data-channel=screen]').first().scrollIntoViewIfNeeded();
   await page.screenshot({ path: 'test-results/studio-mobile.png', fullPage: true });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   assert.deepEqual(errors, []);
