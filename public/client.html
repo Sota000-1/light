@@ -238,7 +238,7 @@
       document.body.classList.remove('rainbow-mode');
       document.body.style.backgroundColor = state.color;
       setTorch(state.torch);
-    }, 40);
+    }, 10);
     setInterval(syncClock, 5000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden && isJoined) { keepScreenAlive(); syncClock(); } });
     socket.on('disconnect', blackout);
