@@ -91,6 +91,45 @@ io.on('connection', (socket) => {
       answer({ ok: true, show, serverTime: Date.now() });
     } catch (error) { answer({ ok: false, error: error.message }); }
   });
+  socket.on('manual-command', (data, reply) => {
+    const answer = result => { if (typeof reply === 'function') reply(result); };
+    try {
+      if (!data || socket.adminEvent !== data.eventId) throw new Error('会場への接続を確認してください');
+      if (!['all', ...Show.groups].includes(data.group)) throw new Error('対象クラスが不正です');
+      const modes = data.channel === 'screen' ? ['color', 'rainbow'] : data.channel === 'torch' ? ['on', 'off', 'pulse', 'ramp', 'flash'] : [];
+      if (!modes.includes(data.mode)) throw new Error('操作が不正です');
+      const ev = socket.adminEvent, now = Date.now(), previous = shows.get(ev);
+      const continuing = previous?.songId === '__realtime__' && Show.position(previous, now) < 7100;
+      const startTime = continuing ? previous.startTime : now;
+      const position = (now - startTime) / 1000, duration = 7200;
+      const channel = c => ['color', 'rainbow'].includes(c.type) ? 'screen' : 'torch';
+      const cues = (continuing ? previous.cues : []).filter(c => c.start + c.duration > position && !(channel(c) === data.channel && (data.group === 'all' || c.group === data.group)));
+      const cue = { id: `manual-${now}-${socket.id}`, start: position, duration: duration - position, group: data.group, label: 'リアルタイム操作' };
+      if (data.channel === 'screen') Object.assign(cue, { type: data.mode === 'rainbow' ? 'rainbow' : 'color', value: data.color });
+      else if (['on', 'off', 'flash'].includes(data.mode)) Object.assign(cue, { type: 'torch', value: data.mode !== 'off' });
+      else {
+        if (!Number.isFinite(data.interval) || data.interval < 200 || data.interval > 2000) throw new Error('点滅間隔は0.2〜2秒で指定してください');
+        Object.assign(cue, { type: 'pulse', interval: data.interval });
+        if (data.mode === 'ramp') {
+          if (!Number.isFinite(data.rampDuration) || data.rampDuration < 0.1 || data.rampDuration > 120 || !Number.isFinite(data.intervalEnd)) throw new Error('間隔と変化時間を確認してください');
+          Object.assign(cue, { intervalEnd: data.intervalEnd, rampDuration: data.rampDuration });
+        }
+      }
+      if (data.mode === 'flash') {
+        cue.duration = 0.25;
+        cues.push({ ...cue, id: cue.id + '-off', start: position + 0.25, duration: duration - position - 0.25, value: false });
+      }
+      cues.push(cue);
+      const normalized = Show.normalize(cues, duration);
+      // Validate first; a malformed command must leave the active performance intact.
+      if (!continuing) stopCurrentMode(ev, false);
+      else clearTimeout(showEnds.get(ev));
+      const show = { owner: socket.id, songId: '__realtime__', title: 'リアルタイム操作', duration, cues: normalized, position: 0, playing: true, startTime };
+      shows.set(ev, show); publishShow(ev);
+      showEnds.set(ev, setTimeout(() => { stopCurrentMode(ev); io.to(ev).emit('set-color', { color: '#000000' }); }, (duration - position) * 1000));
+      answer({ ok: true, show });
+    } catch (error) { answer({ ok: false, error: error.message }); }
+  });
   // 管理者がイベント部屋に参加
   socket.on('join-admin', (data) => {
     const eventId = data.eventId || 'main';

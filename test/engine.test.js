@@ -33,3 +33,30 @@ test('invalid or excessive programs are rejected before playback', () => {
   assert.throws(() => Show.normalize(Array(2001).fill({}), 20));
   assert.throws(() => Show.normalize([{ start: 0, duration: -1, type: 'torch', value: true, group: 'all' }], 20));
 });
+test('accelerating and decelerating pulse phase matches independent numerical integration', () => {
+  for (const [a, b] of [[1000, 200], [200, 1500], [500, 500]]) {
+    const cue = { interval: a, intervalEnd: b, rampDuration: 4, duration: 10 };
+    for (const end of [0, 0.4, 1.7, 4, 6]) {
+      const steps = 20000, dt = end / steps;
+      let numerical = 0;
+      for (let i = 0; i < steps; i++) {
+        const t = (i + 0.5) * dt;
+        numerical += dt / ((a + (b - a) * Math.min(t / 4, 1)) / 1000);
+      }
+      assert.ok(Math.abs(Show.pulsePhase(cue, end) - numerical) < 0.00001);
+    }
+  }
+});
+test('ramped pulses survive serialization and seeking with continuous terminal speed', () => {
+  const c = Show.normalize([{ start: 2, duration: 10, type: 'pulse', group: '2組', interval: 1000, intervalEnd: 200, rampDuration: 4 }], 12);
+  const restored = Show.normalize(JSON.parse(JSON.stringify(c)), 12);
+  assert.deepEqual(restored, c);
+  assert.ok(Math.abs(Show.pulsePhase(c[0], 6) - Show.pulsePhase(c[0], 5) - 5) < 1e-9);
+  for (const time of [2, 3.2, 5.99, 6, 7.45, 11]) {
+    assert.equal(Show.stateAt(restored, time, '2組').torch, Math.floor(Show.pulsePhase(c[0], time - 2) + 1e-9) % 2 === 0);
+    assert.equal(Show.stateAt(restored, time, '1組').torch, false);
+  }
+  assert.throws(() => Show.normalize([{ ...c[0], intervalEnd: NaN }], 12));
+  assert.throws(() => Show.normalize([{ ...c[0], intervalEnd: 20 }], 12));
+  assert.throws(() => Show.normalize([{ ...c[0], rampDuration: -1 }], 12));
+});

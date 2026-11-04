@@ -49,3 +49,38 @@ test('operator switching rooms leaves old updates and ends their active show', a
   assert.equal((await command(a, program('switch1'))).ok, false);
   const c = await client(); received = once(c, 'show-state'); c.emit('join-client', { eventId: 'switch1' }); assert.equal((await received).show, null);
 });
+function manualCommand(s, data) { return new Promise((resolve, reject) => s.timeout(2000).emit('manual-command', data, (e, r) => e ? reject(e) : resolve(r))); }
+test('realtime commands preserve independent screen/torch/class state and ramp phase', async () => {
+  const a = await admin('pads');
+  const send = data => manualCommand(a, { eventId: 'pads', group: 'all', ...data });
+  assert.equal((await send({ channel: 'screen', mode: 'color', color: '#ff0055' })).ok, true);
+  assert.equal((await send({ channel: 'torch', mode: 'on', group: '1組' })).ok, true);
+  const ramp = await send({ channel: 'torch', mode: 'ramp', group: '2組', interval: 1000, intervalEnd: 200, rampDuration: 2 });
+  assert.equal(ramp.ok, true);
+  const recolored = await send({ channel: 'screen', mode: 'color', group: '2組', color: '#0088ff' });
+  assert.equal(recolored.show.startTime, ramp.show.startTime);
+  const t = 3;
+  assert.equal(Show.stateAt(recolored.show.cues, t, '1組').color, '#ff0055');
+  assert.equal(Show.stateAt(recolored.show.cues, t, '1組').torch, true);
+  assert.equal(Show.stateAt(recolored.show.cues, t, '2組').color, '#0088ff');
+  assert.equal(Show.stateAt(recolored.show.cues, t, '2組').torch, Show.stateAt(ramp.show.cues, t, '2組').torch);
+  const off = await send({ channel: 'torch', mode: 'off' });
+  assert.equal(Show.stateAt(off.show.cues, 3, '1組').torch, false);
+  assert.equal(Show.stateAt(off.show.cues, 3, '2組').color, '#0088ff');
+  assert.equal((await send({ channel: 'torch', mode: 'ramp', interval: 1000, intervalEnd: 20, rampDuration: 2 })).ok, false);
+  assert.equal((await manualCommand(a, { eventId: 'main', channel: 'torch', mode: 'on', group: 'all' })).ok, false);
+  const late = await client(); const received = once(late, 'show-state'); late.emit('join-client', { eventId: 'pads', group: '1組' });
+  assert.deepEqual((await received).show.cues, off.show.cues);
+  await command(a, { eventId: 'pads', action: 'stop' });
+});
+test('momentary flash turns off after 250ms without changing the screen', async () => {
+  const a = await admin('flash');
+  await manualCommand(a, { eventId: 'flash', group: 'all', channel: 'screen', mode: 'color', color: '#00cc44' });
+  const result = await manualCommand(a, { eventId: 'flash', group: '3組', channel: 'torch', mode: 'flash' });
+  const flash = result.show.cues.find(c => c.type === 'torch' && c.value === true);
+  assert.equal(Show.stateAt(result.show.cues, flash.start + 0.1, '3組').torch, true);
+  assert.equal(Show.stateAt(result.show.cues, flash.start + 0.3, '3組').torch, false);
+  assert.equal(Show.stateAt(result.show.cues, flash.start + 0.3, '3組').color, '#00cc44');
+  assert.equal(Show.stateAt(result.show.cues, flash.start + 0.1, '1組').torch, false);
+  await command(a, { eventId: 'flash', action: 'stop' });
+});
