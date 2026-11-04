@@ -27,6 +27,7 @@
     .rainbow-mode { animation: rainbow 6s infinite alternate ease-in-out !important; }
   </style>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/show-engine.js"></script>
 </head>
 <body onclick="toggleInfoVisibility()">
   <video id="webcam" autoplay playsinline muted style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;"></video>
@@ -49,7 +50,8 @@
       </div>
       <h3 style="margin-top: 20px; margin-bottom: 5px;">② なまえ（空欄OK）</h3>
       <input type="text" id="nickname" class="name-input" placeholder="例：たろう">
-      <button id="startBtn" class="start-btn" onclick="startCamera()">③ 参加する（カメラ許可）</button>
+      <button id="startBtn" class="start-btn" onclick="startCamera()">③ 画面＋ライトで参加（カメラ許可）</button>
+      <button id="screenBtn" class="start-btn" style="background:#283e57" onclick="joinScreenOnly()">画面だけで参加（カメラ不要）</button>
     </div>
   </div>
 
@@ -75,6 +77,8 @@
     let isJoined = false;
     let infoTimer = null;
     let timelineTimeouts = [];
+    let activeShow = null, clockOffset = 0, bestRTT = Infinity, latestTorch = false, torchBusy = false;
+    let lastClockReply = Date.now();
     let strobeIntervalTimer = null; // ストロボ用タイマー
 
     // URLからイベントIDを取得（例: ?event=gym なら gym）
@@ -98,6 +102,7 @@
       document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('selected'));
       btn.classList.add('selected');
       document.getElementById('startBtn').style.display = 'block';
+      document.getElementById('screenBtn').style.display = 'block';
     }
 
     async function findTorchCamera() {
@@ -116,12 +121,26 @@
       return { stream: fallbackStream, track: fallbackStream.getVideoTracks()[0] };
     }
 
+    function joinScreenOnly() {
+      keepScreenAlive();
+      isJoined = true;
+      const name = document.getElementById('nickname').value;
+      socket.emit('join-client', { eventId, group: selectedClass, name });
+      document.getElementById('setup-view').style.display = 'none';
+      document.getElementById('joined-view').style.display = 'block';
+      document.getElementById('myClassTitle').innerText = `🏫 ${selectedClass}`;
+      document.getElementById('myNameTitle').innerText = name ? `👤 ${name}` : '';
+      document.getElementById('infoOverlay').classList.remove('hidden');
+      scheduleHideInfo();
+    }
     async function startCamera() {
       try {
         keepScreenAlive();
         if (!track) {
           const result = await findTorchCamera();
           track = result.track;
+          latestTorch = true;
+          setTorch(false);
           const video = document.getElementById('webcam');
           video.srcObject = result.stream;
           await video.play().catch(e => console.log(e));
@@ -138,7 +157,7 @@
 
         scheduleHideInfo();
       } catch (err) {
-        alert('カメラの起動に失敗しました: ' + err.message);
+        alert('ライト用カメラを利用できません。「画面だけで参加」から参加できます。');
       }
     }
 
@@ -152,6 +171,7 @@
 
     function leaveClass(e) {
       if (e) e.stopPropagation();
+      activeShow = null;
       clearTimeline();
       clearCurrentEffects();
       socket.emit('leave-client');
@@ -163,6 +183,9 @@
       document.getElementById('joined-view').style.display = 'none';
       document.getElementById('setup-view').style.display = 'flex';
       document.getElementById('startBtn').style.display = 'none';
+      document.getElementById('screenBtn').style.display = 'none';
+      if (track) { track.stop(); track = null; }
+      document.getElementById('webcam').srcObject = null;
       document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('selected'));
     }
 
@@ -184,7 +207,43 @@
       }, 3500);
     }
 
+    function syncClock() {
+      if (!socket.connected) return;
+      const before = Date.now();
+      socket.timeout(2000).emit('clock-sync', {}, (err, serverTime) => {
+        if (err) return;
+        lastClockReply = Date.now();
+        const rtt = Date.now() - before;
+        if (rtt < bestRTT + 20) { bestRTT = Math.min(bestRTT, rtt); clockOffset = serverTime - (before + rtt / 2); }
+      });
+    }
+    function blackout() {
+      activeShow = null; clearTimeline(); clearCurrentEffects();
+      applyColor({ color: '#000000' }); setTorch(false);
+    }
+    socket.on('show-state', data => {
+      if (data.eventId !== eventId || !isJoined) return;
+      clearTimeline(); clearCurrentEffects();
+      activeShow = data.show;
+      if (bestRTT === Infinity) clockOffset = data.serverTime - Date.now();
+      if (!activeShow) { applyColor({ color: '#000000' }); setTorch(false); }
+    });
+    setInterval(() => {
+      if (!activeShow || !isJoined) return;
+      if (!socket.connected || Date.now() - lastClockReply > 30000) return blackout();
+      const now = Date.now() + clockOffset;
+      if (activeShow.playing && now < activeShow.startTime) { applyColor({ color: '#000000' }); setTorch(false); return; }
+      const position = LightShow.position(activeShow, now);
+      const state = LightShow.stateAt(activeShow.cues, position, selectedClass);
+      document.body.classList.remove('rainbow-mode');
+      document.body.style.backgroundColor = state.color;
+      setTorch(state.torch);
+    }, 40);
+    setInterval(syncClock, 5000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && isJoined) { keepScreenAlive(); syncClock(); } });
+    socket.on('disconnect', blackout);
     socket.on('connect', () => {
+      bestRTT = Infinity; lastClockReply = Date.now(); syncClock();
       if (isJoined && selectedClass) {
         const name = document.getElementById('nickname').value;
         socket.emit('join-client', { eventId: eventId, group: selectedClass, name: name });
@@ -228,9 +287,18 @@
     }
 
     async function setTorch(state) {
-      if (track) {
-        try { await track.applyConstraints({ advanced: [{ torch: state }] }); } catch (e) {}
-      }
+      if (latestTorch === state && !torchBusy) return;
+      latestTorch = state;
+      if (torchBusy || !track) return;
+      torchBusy = true;
+      try {
+        let applied;
+        do {
+          applied = latestTorch;
+          await track.applyConstraints({ advanced: [{ torch: applied }] });
+        } while (track && applied !== latestTorch);
+      } catch (e) { /* Screen-only devices still receive all screen cues. */ }
+      finally { torchBusy = false; }
     }
 
     // ストロボ命令を受信
@@ -265,3 +333,4 @@
   </script>
 </body>
 </html>
+
